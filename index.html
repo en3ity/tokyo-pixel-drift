@@ -1,0 +1,2689 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>TOKYO PIXEL DRIFT // JDM NIGHTS</title>
+<style>
+  :root {
+    --glass: rgba(12, 15, 28, 0.42);
+    --glass-hover: rgba(24, 30, 52, 0.58);
+    --border: rgba(255, 255, 255, 0.16);
+    --accent: #ff4fa3;
+    --cyan: #38f2ff;
+    --gold: #ffd15c;
+    --text: #f3f6ff;
+    --muted: rgba(235, 242, 255, 0.62);
+  }
+
+  * {
+    box-sizing: border-box;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #070812;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, monospace;
+    color: var(--text);
+  }
+
+  #game-canvas {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    cursor: grab;
+  }
+  #game-canvas:active {
+    cursor: grabbing;
+  }
+
+  /* Translucent Frosted HUD Layer */
+  .hud {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 14px;
+    z-index: 10;
+  }
+
+  .panel {
+    pointer-events: auto;
+    background: var(--glass);
+    backdrop-filter: blur(14px) saturate(140%);
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255,255,255,0.12);
+    transition: background 0.2s, border-color 0.2s, transform 0.15s;
+  }
+
+  /* Top Bar */
+  .top-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .brand-score {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 10px 16px;
+  }
+
+  .logo-badge {
+    display: flex;
+    flex-direction: column;
+  }
+  .logo-badge .jp {
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: var(--accent);
+    font-weight: 700;
+  }
+  .logo-badge .title {
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: 0.8px;
+    background: linear-gradient(90deg, #fff, var(--cyan), var(--accent));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .divider-v {
+    width: 1px;
+    height: 28px;
+    background: var(--border);
+  }
+
+  .score-box {
+    display: flex;
+    gap: 16px;
+    align-items: baseline;
+  }
+  .stat-col {
+    display: flex;
+    flex-direction: column;
+  }
+  .stat-label {
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    color: var(--muted);
+  }
+  .stat-val {
+    font-size: 18px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    color: #fff;
+  }
+  .stat-val.cyan { color: var(--cyan); text-shadow: 0 0 12px rgba(56,242,255,0.5); }
+  .stat-val.pink { color: var(--accent); text-shadow: 0 0 12px rgba(255,79,163,0.5); }
+
+  /* Center Drift Popup */
+  .drift-banner {
+    position: fixed;
+    top: 84px;
+    left: 50%;
+    transform: translateX(-50%) scale(0.92);
+    padding: 8px 20px;
+    border-radius: 999px;
+    background: rgba(15, 16, 30, 0.45);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 79, 163, 0.45);
+    box-shadow: 0 0 28px rgba(255, 79, 163, 0.28);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    opacity: 0;
+    transition: opacity 0.18s, transform 0.18s;
+    pointer-events: none;
+  }
+  .drift-banner.active {
+    opacity: 1;
+    transform: translateX(-50%) scale(1);
+  }
+  .drift-angle-tag {
+    font-size: 12px;
+    font-weight: 800;
+    color: var(--cyan);
+  }
+  .drift-pts {
+    font-size: 20px;
+    font-weight: 900;
+    color: var(--gold);
+    text-shadow: 0 0 14px rgba(255, 209, 92, 0.6);
+    font-variant-numeric: tabular-nums;
+  }
+  .drift-mult {
+    font-size: 13px;
+    font-weight: 900;
+    background: linear-gradient(135deg, var(--accent), #ff8a4c);
+    padding: 2px 8px;
+    border-radius: 999px;
+    color: #fff;
+  }
+
+  /* Top-right Studio Controls + Minimap */
+  .top-right {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .studio-panel {
+    padding: 10px 14px;
+    width: 224px;
+  }
+  .studio-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.9px;
+    color: var(--cyan);
+  }
+  .studio-body {
+    margin-top: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .studio-body.collapsed {
+    display: none;
+  }
+  .slider-row {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .slider-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    color: var(--muted);
+  }
+  input[type="range"] {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 5px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.14);
+    outline: none;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 13px;
+    height: 13px;
+    border-radius: 50%;
+    background: var(--cyan);
+    box-shadow: 0 0 10px var(--cyan);
+    cursor: pointer;
+  }
+
+  .quick-toggles {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-top: 2px;
+  }
+  .chip-btn {
+    flex: 1 1 auto;
+    padding: 5px 8px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text);
+    font-size: 10px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-align: center;
+  }
+  .chip-btn:hover {
+    background: rgba(255, 255, 255, 0.14);
+  }
+  .chip-btn.on {
+    background: rgba(56, 242, 255, 0.2);
+    border-color: var(--cyan);
+    color: #fff;
+    box-shadow: 0 0 10px rgba(56, 242, 255, 0.25);
+  }
+
+  .minimap-wrap {
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+  #minimap {
+    width: 112px;
+    height: 112px;
+    border-radius: 12px;
+    background: rgba(5, 7, 16, 0.55);
+    border: 1px solid rgba(255,255,255,0.1);
+  }
+  .zone-name {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: var(--gold);
+    text-transform: uppercase;
+  }
+
+  /* Bottom Row */
+  .bottom-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  /* Interactive Car Garage Dock */
+  .garage-dock {
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-width: 100%;
+  }
+  .car-tabs {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .car-card {
+    cursor: pointer;
+    padding: 7px 11px;
+    border-radius: 12px;
+    border: 1px solid rgba(255,255,255,0.12);
+    background: rgba(255,255,255,0.04);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    transition: all 0.16s;
+    min-width: 96px;
+  }
+  .car-card:hover {
+    background: rgba(255,255,255,0.12);
+    transform: translateY(-2px);
+  }
+  .car-card.active {
+    background: rgba(255, 79, 163, 0.22);
+    border-color: var(--accent);
+    box-shadow: 0 0 18px rgba(255, 79, 163, 0.3);
+  }
+  .car-card .key {
+    font-size: 9px;
+    color: var(--cyan);
+    font-weight: 800;
+  }
+  .car-card .name {
+    font-size: 11px;
+    font-weight: 800;
+  }
+  .car-card .spec {
+    font-size: 9px;
+    color: var(--muted);
+  }
+
+  .paint-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .swatches {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .swatch-label {
+    font-size: 9px;
+    letter-spacing: 1px;
+    color: var(--muted);
+    margin-right: 2px;
+  }
+  .swatch {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    border: 2px solid rgba(255,255,255,0.4);
+    cursor: pointer;
+    transition: transform 0.15s;
+  }
+  .swatch:hover { transform: scale(1.2); }
+  .swatch.active {
+    border-color: #fff;
+    box-shadow: 0 0 10px #fff;
+    transform: scale(1.15);
+  }
+
+  /* Telemetry Speedometer */
+  .telemetry-panel {
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .gauge-wrap {
+    position: relative;
+    width: 110px;
+    height: 82px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+  }
+  #telemetry-svg {
+    position: absolute;
+    inset: 0;
+    width: 110px;
+    height: 82px;
+  }
+  .speed-readout {
+    font-size: 26px;
+    font-weight: 900;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+  .speed-unit {
+    font-size: 9px;
+    color: var(--muted);
+    letter-spacing: 1.5px;
+    margin-bottom: 2px;
+  }
+  .tele-bars {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    min-width: 108px;
+  }
+  .gear-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .gear-badge {
+    width: 28px;
+    height: 28px;
+    border-radius: 9px;
+    background: rgba(255, 209, 92, 0.16);
+    border: 1px solid rgba(255, 209, 92, 0.5);
+    color: var(--gold);
+    font-weight: 900;
+    font-size: 15px;
+    display: grid;
+    place-items: center;
+  }
+  .mini-bar-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .mini-bar-lbl {
+    display: flex;
+    justify-content: space-between;
+    font-size: 9px;
+    color: var(--muted);
+  }
+  .mini-bar-track {
+    width: 100%;
+    height: 6px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.1);
+    overflow: hidden;
+  }
+  .mini-bar-fill {
+    height: 100%;
+    width: 50%;
+    border-radius: 999px;
+    transition: width 0.06s linear;
+  }
+
+  /* Hands-On Touch / Click Driving Pad */
+  .touch-pad {
+    display: none;
+    gap: 8px;
+    align-items: center;
+    padding: 8px 10px;
+  }
+  .touch-pad.visible {
+    display: flex;
+  }
+  .pad-btn {
+    width: 44px;
+    height: 44px;
+    border-radius: 13px;
+    border: 1px solid var(--border);
+    background: rgba(255,255,255,0.08);
+    color: #fff;
+    font-weight: 800;
+    font-size: 13px;
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    touch-action: none;
+  }
+  .pad-btn:active, .pad-btn.held {
+    background: rgba(56, 242, 255, 0.28);
+    border-color: var(--cyan);
+  }
+  .pad-btn.wide { width: 64px; font-size: 10px; }
+
+  /* Audio / Start Toast */
+  .ignite-toast {
+    position: fixed;
+    bottom: 135px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 9px 18px;
+    border-radius: 999px;
+    background: rgba(15, 18, 34, 0.55);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(56, 242, 255, 0.45);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.7px;
+    color: #fff;
+    pointer-events: none;
+    box-shadow: 0 0 24px rgba(56, 242, 255, 0.25);
+    transition: opacity 0.4s;
+    z-index: 20;
+    white-space: nowrap;
+  }
+  .ignite-toast.hidden {
+    opacity: 0;
+  }
+
+  @media (max-width: 780px) {
+    .studio-panel { display: none; }
+    .minimap-wrap { display: none; }
+    .garage-dock { width: 100%; }
+    .car-card { min-width: 72px; flex: 1; padding: 6px 8px; }
+  }
+</style>
+</head>
+<body>
+
+<canvas id="game-canvas"></canvas>
+
+<div id="ignite-toast" class="ignite-toast">
+  WASD / ARROWS TO DRIVE · SPACE HANDBRAKE · SHIFT NITRO · CLICK TO IGNITE SOUND
+</div>
+
+<div class="hud">
+  <!-- TOP ROW -->
+  <div class="top-row">
+    <div class="panel brand-score">
+      <div class="logo-badge">
+        <span class="jp">東京ナイトドリフト</span>
+        <span class="title">TOKYO PIXEL DRIFT</span>
+      </div>
+      <div class="divider-v"></div>
+      <div class="score-box">
+        <div class="stat-col">
+          <span class="stat-label">Banked Score</span>
+          <span class="stat-val cyan" id="ui-total-score">0</span>
+        </div>
+        <div class="stat-col">
+          <span class="stat-label">Best Drift</span>
+          <span class="stat-val pink" id="ui-best-drift">0</span>
+        </div>
+        <div class="stat-col">
+          <span class="stat-label">Gates</span>
+          <span class="stat-val" id="ui-gates">0</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="top-right">
+      <div class="panel studio-panel">
+        <div class="studio-header" id="studio-toggle">
+          <span>✦ VISUAL &amp; AUDIO STUDIO</span>
+          <span id="studio-arrow">▾</span>
+        </div>
+        <div class="studio-body" id="studio-body">
+          <div class="slider-row">
+            <div class="slider-label"><span>Pixel Crunch</span><span id="lbl-pixel">0.38x</span></div>
+            <input type="range" id="sl-pixel" min="0.18" max="1.0" step="0.02" value="0.38">
+          </div>
+          <div class="slider-row">
+            <div class="slider-label"><span>Bloom Glow</span><span id="lbl-bloom">1.15</span></div>
+            <input type="range" id="sl-bloom" min="0.0" max="2.4" step="0.05" value="1.15">
+          </div>
+          <div class="slider-row">
+            <div class="slider-label"><span>Engine &amp; Tire Vol</span><span id="lbl-vol">75%</span></div>
+            <input type="range" id="sl-vol" min="0" max="1" step="0.05" value="0.75">
+          </div>
+          <div class="quick-toggles">
+            <button class="chip-btn on" id="btn-lights">Lights [H]</button>
+            <button class="chip-btn on" id="btn-neon">Neon [N]</button>
+            <button class="chip-btn on" id="btn-synth">City Synth</button>
+            <button class="chip-btn" id="btn-cam">Cam: Chase [C]</button>
+            <button class="chip-btn" id="btn-pad">Touch Pad</button>
+            <button class="chip-btn" id="btn-reset">Reset [R]</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel minimap-wrap">
+        <canvas id="minimap" width="112" height="112"></canvas>
+        <div class="zone-name" id="ui-zone">SHIBUYA CROSSING</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CENTER DRIFT BANNER -->
+  <div class="drift-banner" id="drift-banner">
+    <span class="drift-angle-tag" id="drift-angle">28° SLIDE</span>
+    <span class="drift-pts" id="drift-pts">+0</span>
+    <span class="drift-mult" id="drift-mult">x1</span>
+  </div>
+
+  <!-- BOTTOM ROW -->
+  <div class="bottom-row">
+    <div class="panel garage-dock">
+      <div class="car-tabs" id="car-tabs">
+        <div class="car-card active" data-car="miata">
+          <span class="key">[1] ROADSTER</span>
+          <span class="name">Miata MX-5</span>
+          <span class="spec">Agile · Pop-ups</span>
+        </div>
+        <div class="car-card" data-car="nsx">
+          <span class="key">[2] MID-SHIP</span>
+          <span class="name">Honda NSX</span>
+          <span class="spec">VTEC · Balanced</span>
+        </div>
+        <div class="car-card" data-car="supra">
+          <span class="key">[3] 2JZ TURBO</span>
+          <span class="name">Supra MK4</span>
+          <span class="spec">Boost · Big Slide</span>
+        </div>
+        <div class="car-card" data-car="r34">
+          <span class="key">[4] GODZILLA</span>
+          <span class="name">GT-R R34</span>
+          <span class="spec">AWD · Grip/Drift</span>
+        </div>
+      </div>
+      <div class="paint-row">
+        <div class="swatches" id="swatches">
+          <span class="swatch-label">PAINT</span>
+          <div class="swatch active" data-color="#e82b44" style="background:#e82b44" title="Classic Red"></div>
+          <div class="swatch" data-color="#1e6bff" style="background:#1e6bff" title="Bayside Blue"></div>
+          <div class="swatch" data-color="#ff7a29" style="background:#ff7a29" title="Supra Pearl Orange"></div>
+          <div class="swatch" data-color="#f5c83b" style="background:#f5c83b" title="Indy Yellow"></div>
+          <div class="swatch" data-color="#eef3ff" style="background:#eef3ff" title="Championship White"></div>
+          <div class="swatch" data-color="#9e47ff" style="background:#9e47ff" title="Midnight Purple"></div>
+          <div class="swatch" data-color="#2ee6b8" style="background:#2ee6b8" title="Mint Jade"></div>
+        </div>
+        <div style="font-size:10px; color:var(--muted);">Drag screen to orbit</div>
+      </div>
+    </div>
+
+    <div class="panel touch-pad" id="touch-pad">
+      <button class="pad-btn" data-key="ArrowLeft">◀</button>
+      <button class="pad-btn" data-key="ArrowRight">▶</button>
+      <button class="pad-btn wide" data-key="Space">DRIFT</button>
+      <button class="pad-btn wide" data-key="ShiftLeft">NITRO</button>
+      <button class="pad-btn" data-key="ArrowDown">▼</button>
+      <button class="pad-btn" data-key="ArrowUp">▲</button>
+    </div>
+
+    <div class="panel telemetry-panel">
+      <div class="gauge-wrap">
+        <svg id="telemetry-svg" viewBox="0 0 110 82">
+          <path d="M 14 70 A 42 42 0 1 1 96 70" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="8" stroke-linecap="round"/>
+          <path id="rpm-arc" d="M 14 70 A 42 42 0 1 1 96 70" fill="none" stroke="#38f2ff" stroke-width="8" stroke-linecap="round" stroke-dasharray="198" stroke-dashoffset="198"/>
+        </svg>
+        <div class="speed-readout" id="ui-speed">0</div>
+        <div class="speed-unit">KM/H</div>
+      </div>
+      <div class="tele-bars">
+        <div class="gear-row">
+          <span style="font-size:10px;color:var(--muted);letter-spacing:1px;">GEAR</span>
+          <div class="gear-badge" id="ui-gear">N</div>
+        </div>
+        <div class="mini-bar-wrap">
+          <div class="mini-bar-lbl"><span>NITRO</span><span id="ui-nitro-pct">100%</span></div>
+          <div class="mini-bar-track"><div class="mini-bar-fill" id="bar-nitro" style="background:linear-gradient(90deg,#38f2ff,#ff4fa3);width:100%"></div></div>
+        </div>
+        <div class="mini-bar-wrap">
+          <div class="mini-bar-lbl"><span>SLIP</span><span id="ui-slip-deg">0°</span></div>
+          <div class="mini-bar-track"><div class="mini-bar-fill" id="bar-slip" style="background:linear-gradient(90deg,#ffd15c,#ff3b7f);width:0%"></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+
+/* =========================================================
+   1. PROCEDURAL REALISTIC WEB AUDIO ENGINE
+========================================================= */
+class JdmAudioEngine {
+  constructor() {
+    this.ctx = null;
+    this.master = null;
+    this.initialized = false;
+    this.volume = 0.75;
+    this.synthEnabled = true;
+
+    this.engineOsc1 = null;
+    this.engineOsc2 = null;
+    this.engineSub = null;
+    this.engineFilter = null;
+    this.engineGain = null;
+
+    this.screechFilter = null;
+    this.screechGain = null;
+
+    this.turboOsc = null;
+    this.turboGain = null;
+
+    this.synthGain = null;
+    this.lastBoost = 0;
+    this.lastChordTime = 0;
+    this.chordIndex = 0;
+  }
+
+  init() {
+    if (this.initialized) {
+      if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
+      return;
+    }
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+
+    this.ctx = new AudioCtx();
+    this.master = this.ctx.createGain();
+    this.master.gain.value = this.volume;
+    this.master.connect(this.ctx.destination);
+
+    // Engine harmonic stack
+    this.engineFilter = this.ctx.createBiquadFilter();
+    this.engineFilter.type = 'lowpass';
+    this.engineFilter.frequency.value = 350;
+    this.engineFilter.Q.value = 3.2;
+
+    this.engineGain = this.ctx.createGain();
+    this.engineGain.gain.value = 0.16;
+
+    this.engineOsc1 = this.ctx.createOscillator();
+    this.engineOsc1.type = 'sawtooth';
+    this.engineOsc1.frequency.value = 55;
+
+    this.engineOsc2 = this.ctx.createOscillator();
+    this.engineOsc2.type = 'triangle';
+    this.engineOsc2.frequency.value = 110;
+
+    this.engineSub = this.ctx.createOscillator();
+    this.engineSub.type = 'sine';
+    this.engineSub.frequency.value = 27.5;
+
+    const osc2Gain = this.ctx.createGain();
+    osc2Gain.gain.value = 0.55;
+    const subGain = this.ctx.createGain();
+    subGain.gain.value = 0.65;
+
+    this.engineOsc1.connect(this.engineFilter);
+    this.engineOsc2.connect(osc2Gain);
+    osc2Gain.connect(this.engineFilter);
+    this.engineSub.connect(subGain);
+    subGain.connect(this.engineFilter);
+
+    this.engineFilter.connect(this.engineGain);
+    this.engineGain.connect(this.master);
+
+    this.engineOsc1.start();
+    this.engineOsc2.start();
+    this.engineSub.start();
+
+    // Noise buffer for Tire Screech & Wind
+    const bufferSize = this.ctx.sampleRate * 2;
+    const noiseBuf = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+    const data = noiseBuf.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = Math.random() * 2 - 1;
+    }
+
+    const noiseSrc = this.ctx.createBufferSource();
+    noiseSrc.buffer = noiseBuf;
+    noiseSrc.loop = true;
+
+    this.screechFilter = this.ctx.createBiquadFilter();
+    this.screechFilter.type = 'bandpass';
+    this.screechFilter.frequency.value = 1450;
+    this.screechFilter.Q.value = 6.5;
+
+    this.screechGain = this.ctx.createGain();
+    this.screechGain.gain.value = 0.0;
+
+    noiseSrc.connect(this.screechFilter);
+    this.screechFilter.connect(this.screechGain);
+    this.screechGain.connect(this.master);
+    noiseSrc.start();
+
+    // Turbo spool whine
+    this.turboOsc = this.ctx.createOscillator();
+    this.turboOsc.type = 'sine';
+    this.turboOsc.frequency.value = 1800;
+    this.turboGain = this.ctx.createGain();
+    this.turboGain.gain.value = 0;
+    this.turboOsc.connect(this.turboGain);
+    this.turboGain.connect(this.master);
+    this.turboOsc.start();
+
+    // Ambient Tokyo Night Synth Pad Bus
+    this.synthGain = this.ctx.createGain();
+    this.synthGain.gain.value = this.synthEnabled ? 0.09 : 0;
+    const synthFilter = this.ctx.createBiquadFilter();
+    synthFilter.type = 'lowpass';
+    synthFilter.frequency.value = 680;
+    this.synthGain.connect(synthFilter);
+    synthFilter.connect(this.master);
+
+    this.initialized = true;
+    document.getElementById('ignite-toast').classList.add('hidden');
+  }
+
+  setVolume(v) {
+    this.volume = v;
+    if (this.master) this.master.gain.setTargetAtTime(v, this.ctx.currentTime, 0.04);
+  }
+
+  setSynth(enabled) {
+    this.synthEnabled = enabled;
+    if (this.synthGain && this.ctx) {
+      this.synthGain.gain.setTargetAtTime(enabled ? 0.09 : 0, this.ctx.currentTime, 0.25);
+    }
+  }
+
+  triggerTurboFlutter(intensity = 1) {
+    if (!this.initialized || !this.ctx) return;
+    const now = this.ctx.currentTime;
+    // "Stu-tu-tu" blow-off flutter
+    for (let i = 0; i < 4; i++) {
+      const t = now + i * 0.065;
+      const osc = this.ctx.createOscillator();
+      const g = this.ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(1600 - i * 240, t);
+      osc.frequency.exponentialRampToValueAtTime(620, t + 0.055);
+      g.gain.setValueAtTime(0.08 * intensity * (1 - i * 0.2), t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.06);
+      osc.connect(g);
+      g.connect(this.master);
+      osc.start(t);
+      osc.stop(t + 0.065);
+    }
+  }
+
+  triggerBump(strength = 0.5) {
+    if (!this.initialized || !this.ctx) return;
+    const now = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(130, now);
+    osc.frequency.exponentialRampToValueAtTime(36, now + 0.14);
+    g.gain.setValueAtTime(Math.min(0.35, 0.18 * strength), now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.16);
+    osc.connect(g);
+    g.connect(this.master);
+    osc.start(now);
+    osc.stop(now + 0.17);
+  }
+
+  triggerGateChime(combo) {
+    if (!this.initialized || !this.ctx) return;
+    const now = this.ctx.currentTime;
+    const base = 523.25 * Math.pow(1.06, Math.min(combo, 12));
+    [base, base * 1.25, base * 1.5].forEach((freq, idx) => {
+      const osc = this.ctx.createOscillator();
+      const g = this.ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, now + idx * 0.045);
+      g.gain.setValueAtTime(0.08, now + idx * 0.045);
+      g.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.045 + 0.35);
+      osc.connect(g);
+      g.connect(this.master);
+      osc.start(now + idx * 0.045);
+      osc.stop(now + idx * 0.045 + 0.36);
+    });
+  }
+
+  playUiClick() {
+    if (!this.initialized || !this.ctx) return;
+    const now = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(880, now);
+    osc.frequency.exponentialRampToValueAtTime(1240, now + 0.04);
+    g.gain.setValueAtTime(0.05, now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+    osc.connect(g);
+    g.connect(this.master);
+    osc.start(now);
+    osc.stop(now + 0.055);
+  }
+
+  update(rpmNorm, throttle, slipIntensity, carSpec, boostActive) {
+    if (!this.initialized || !this.ctx) return;
+    const now = this.ctx.currentTime;
+
+    // Distinct character per JDM engine
+    const baseHz = carSpec.baseHz;
+    const freq = baseHz + rpmNorm * carSpec.rpmSpan;
+
+    this.engineOsc1.frequency.setTargetAtTime(freq, now, 0.03);
+    this.engineOsc2.frequency.setTargetAtTime(freq * carSpec.harmonic, now, 0.03);
+    this.engineSub.frequency.setTargetAtTime(freq * 0.5, now, 0.03);
+
+    const filterCut = 210 + rpmNorm * 1450 + throttle * 550 + (boostActive ? 500 : 0);
+    this.engineFilter.frequency.setTargetAtTime(filterCut, now, 0.04);
+    this.engineGain.gain.setTargetAtTime(0.11 + throttle * 0.09 + rpmNorm * 0.05, now, 0.04);
+
+    // Turbo spool & flutter on lift-off
+    const targetTurbo = carSpec.hasTurbo ? Math.max(0, (rpmNorm - 0.35) * throttle) : 0;
+    this.turboOsc.frequency.setTargetAtTime(1700 + rpmNorm * 2600, now, 0.05);
+    this.turboGain.gain.setTargetAtTime(targetTurbo * 0.025, now, 0.06);
+
+    if (carSpec.hasTurbo && this.lastBoost > 0.45 && throttle < 0.15) {
+      this.triggerTurboFlutter(this.lastBoost);
+    }
+    this.lastBoost = targetTurbo;
+
+    // Tire screech based on slip angle & speed
+    const screechVol = Math.min(0.18, slipIntensity * 0.16);
+    this.screechGain.gain.setTargetAtTime(screechVol, now, 0.04);
+    this.screechFilter.frequency.setTargetAtTime(1150 + slipIntensity * 950, now, 0.05);
+
+    // Ambient dreamy city-pop chord progression every 4.5s
+    if (this.synthEnabled && now - this.lastChordTime > 4.5) {
+      this.lastChordTime = now;
+      const chords = [
+        [220, 261.63, 329.63, 392.0],   // Am7
+        [174.61, 220, 261.63, 329.63],  // Fmaj7
+        [196, 246.94, 293.66, 349.23],  // G7sus
+        [164.81, 196, 246.94, 293.66],  // Em7
+      ];
+      const chord = chords[this.chordIndex % chords.length];
+      this.chordIndex++;
+      chord.forEach((f) => {
+        const osc = this.ctx.createOscillator();
+        const g = this.ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(f, now);
+        g.gain.setValueAtTime(0.001, now);
+        g.gain.linearRampToValueAtTime(0.14, now + 1.1);
+        g.gain.linearRampToValueAtTime(0.001, now + 4.4);
+        osc.connect(g);
+        g.connect(this.synthGain);
+        osc.start(now);
+        osc.stop(now + 4.45);
+      });
+    }
+  }
+}
+
+const audio = new JdmAudioEngine();
+
+/* =========================================================
+   2. JDM CAR SPECIFICATIONS & LOW-POLY ROUNDED BUILDERS
+========================================================= */
+const CAR_SPECS = {
+  miata: {
+    id: 'miata',
+    name: 'Mazda Miata MX-5',
+    defaultColor: '#e82b44',
+    maxSpeed: 54,
+    accel: 32,
+    turnSpeed: 3.1,
+    driftGrip: 0.915,
+    baseHz: 52,
+    rpmSpan: 145,
+    harmonic: 2.0,
+    hasTurbo: false,
+    hasPopups: true,
+    length: 3.8,
+    width: 1.72,
+  },
+  nsx: {
+    id: 'nsx',
+    name: 'Honda NSX',
+    defaultColor: '#f5c83b',
+    maxSpeed: 64,
+    accel: 37,
+    turnSpeed: 2.8,
+    driftGrip: 0.928,
+    baseHz: 62,
+    rpmSpan: 185,
+    harmonic: 1.5,
+    hasTurbo: false,
+    hasPopups: true,
+    length: 4.3,
+    width: 1.84,
+  },
+  supra: {
+    id: 'supra',
+    name: 'Toyota Supra MK4',
+    defaultColor: '#ff7a29',
+    maxSpeed: 68,
+    accel: 39,
+    turnSpeed: 2.65,
+    driftGrip: 0.905,
+    baseHz: 46,
+    rpmSpan: 155,
+    harmonic: 2.0,
+    hasTurbo: true,
+    hasPopups: false,
+    length: 4.4,
+    width: 1.88,
+  },
+  r34: {
+    id: 'r34',
+    name: 'Nissan GT-R R34',
+    defaultColor: '#1e6bff',
+    maxSpeed: 67,
+    accel: 42,
+    turnSpeed: 2.9,
+    driftGrip: 0.938,
+    baseHz: 54,
+    rpmSpan: 170,
+    harmonic: 1.98,
+    hasTurbo: true,
+    hasPopups: false,
+    length: 4.45,
+    width: 1.86,
+  }
+};
+
+function makeWheel(radius = 0.34, width = 0.25) {
+  const g = new THREE.Group();
+  const tire = new THREE.Mesh(
+    new THREE.CylinderGeometry(radius, radius, width, 12),
+    new THREE.MeshStandardMaterial({ color: 0x161820, roughness: 0.85, metalness: 0.1 })
+  );
+  tire.rotation.z = Math.PI / 2;
+  g.add(tire);
+
+  const rim = new THREE.Mesh(
+    new THREE.CylinderGeometry(radius * 0.62, radius * 0.62, width + 0.02, 8),
+    new THREE.MeshStandardMaterial({ color: 0xd9e4ff, roughness: 0.25, metalness: 0.85 })
+  );
+  rim.rotation.z = Math.PI / 2;
+  g.add(rim);
+
+  const hub = new THREE.Mesh(
+    new THREE.CylinderGeometry(radius * 0.2, radius * 0.2, width + 0.04, 6),
+    new THREE.MeshStandardMaterial({ color: 0xff4fa3, emissive: 0x440822, roughness: 0.3, metalness: 0.6 })
+  );
+  hub.rotation.z = Math.PI / 2;
+  g.add(hub);
+  return g;
+}
+
+function buildJdmCar(carId, colorHex) {
+  const root = new THREE.Group();
+  const bodyGroup = new THREE.Group(); // tilts with suspension roll & pitch
+  root.add(bodyGroup);
+
+  const paintMat = new THREE.MeshStandardMaterial({
+    color: new THREE.Color(colorHex),
+    roughness: 0.26,
+    metalness: 0.42
+  });
+  const trimMat = new THREE.MeshStandardMaterial({ color: 0x151822, roughness: 0.7, metalness: 0.2 });
+  const glassMat = new THREE.MeshStandardMaterial({
+    color: 0x101c33,
+    roughness: 0.1,
+    metalness: 0.9,
+    transparent: true,
+    opacity: 0.86
+  });
+  const metalMat = new THREE.MeshStandardMaterial({ color: 0xbcc8de, roughness: 0.25, metalness: 0.85 });
+
+  const headlightMat = new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    emissive: 0xdff6ff,
+    emissiveIntensity: 2.2
+  });
+  const taillightMat = new THREE.MeshStandardMaterial({
+    color: 0xff2244,
+    emissive: 0xff1133,
+    emissiveIntensity: 1.9
+  });
+
+  const popupPivots = [];
+
+  if (carId === 'miata') {
+    // Bubbly cute rounded body
+    const lower = new THREE.Mesh(new RoundedBoxGeometry(1.70, 0.48, 3.72, 2, 0.18), paintMat);
+    lower.position.set(0, 0.48, 0);
+    bodyGroup.add(lower);
+
+    // Curved front bumper smile grille
+    const grille = new THREE.Mesh(new RoundedBoxGeometry(0.84, 0.18, 0.16, 2, 0.06), trimMat);
+    grille.position.set(0, 0.38, 1.82);
+    bodyGroup.add(grille);
+
+    // Open-top cabin tub
+    const interior = new THREE.Mesh(new RoundedBoxGeometry(1.32, 0.22, 1.25, 2, 0.06), new THREE.MeshStandardMaterial({ color: 0x3b241a, roughness: 0.8 }));
+    interior.position.set(0, 0.68, -0.15);
+    bodyGroup.add(interior);
+
+    // Seats
+    [-0.33, 0.33].forEach(x => {
+      const seat = new THREE.Mesh(new RoundedBoxGeometry(0.42, 0.46, 0.34, 2, 0.08), new THREE.MeshStandardMaterial({ color: 0x2a1a14, roughness: 0.85 }));
+      seat.position.set(x, 0.88, -0.35);
+      seat.rotation.x = -0.18;
+      bodyGroup.add(seat);
+    });
+
+    // Roll hoops
+    [-0.35, 0.35].forEach(x => {
+      const hoop = new THREE.Mesh(new THREE.TorusGeometry(0.18, 0.035, 6, 10, Math.PI), metalMat);
+      hoop.position.set(x, 0.96, -0.62);
+      bodyGroup.add(hoop);
+    });
+
+    // Raked windshield
+    const ws = new THREE.Mesh(new RoundedBoxGeometry(1.36, 0.46, 0.08, 2, 0.03), glassMat);
+    ws.position.set(0, 0.89, 0.44);
+    ws.rotation.x = -0.58;
+    bodyGroup.add(ws);
+
+    // Pop-up Headlights!
+    [-0.52, 0.52].forEach(x => {
+      const pivot = new THREE.Group();
+      pivot.position.set(x, 0.67, 1.38);
+      const housing = new THREE.Mesh(new RoundedBoxGeometry(0.32, 0.14, 0.34, 2, 0.04), paintMat);
+      housing.position.set(0, 0.04, 0.12);
+      pivot.add(housing);
+      const lamp = new THREE.Mesh(new THREE.CylinderGeometry(0.10, 0.10, 0.06, 10), headlightMat);
+      lamp.rotation.x = Math.PI / 2;
+      lamp.position.set(0, 0.03, 0.27);
+      pivot.add(lamp);
+      bodyGroup.add(pivot);
+      popupPivots.push(pivot);
+    });
+
+    // Oval Miata taillights
+    [-0.54, 0.54].forEach(x => {
+      const tl = new THREE.Mesh(new RoundedBoxGeometry(0.38, 0.14, 0.08, 2, 0.05), taillightMat);
+      tl.position.set(x, 0.56, -1.84);
+      bodyGroup.add(tl);
+    });
+
+    // Cute ducktail lip
+    const duck = new THREE.Mesh(new RoundedBoxGeometry(1.42, 0.10, 0.22, 2, 0.04), paintMat);
+    duck.position.set(0, 0.72, -1.72);
+    duck.rotation.x = 0.25;
+    bodyGroup.add(duck);
+
+  } else if (carId === 'nsx') {
+    // Low sleek mid-engine wedge
+    const lower = new THREE.Mesh(new RoundedBoxGeometry(1.82, 0.44, 4.24, 2, 0.16), paintMat);
+    lower.position.set(0, 0.44, 0);
+    bodyGroup.add(lower);
+
+    // Side air scoops
+    [-0.91, 0.91].forEach(x => {
+      const scoop = new THREE.Mesh(new RoundedBoxGeometry(0.10, 0.22, 0.72, 2, 0.03), trimMat);
+      scoop.position.set(x, 0.48, -0.55);
+      bodyGroup.add(scoop);
+    });
+
+    // Signature black fighter-jet canopy
+    const canopy = new THREE.Mesh(new RoundedBoxGeometry(1.42, 0.40, 1.85, 2, 0.15), glassMat);
+    canopy.position.set(0, 0.77, -0.1);
+    bodyGroup.add(canopy);
+
+    // Roof arch
+    const roof = new THREE.Mesh(new RoundedBoxGeometry(1.36, 0.10, 0.95, 2, 0.04), trimMat);
+    roof.position.set(0, 0.95, -0.15);
+    bodyGroup.add(roof);
+
+    // Pop-up headlights
+    [-0.58, 0.58].forEach(x => {
+      const pivot = new THREE.Group();
+      pivot.position.set(x, 0.61, 1.65);
+      const housing = new THREE.Mesh(new RoundedBoxGeometry(0.34, 0.12, 0.36, 2, 0.03), paintMat);
+      housing.position.set(0, 0.03, 0.12);
+      pivot.add(housing);
+      const lamp = new THREE.Mesh(new RoundedBoxGeometry(0.26, 0.09, 0.06, 2, 0.02), headlightMat);
+      lamp.position.set(0, 0.02, 0.28);
+      pivot.add(lamp);
+      bodyGroup.add(pivot);
+      popupPivots.push(pivot);
+    });
+
+    // Integrated NSX rear wing
+    const wing = new THREE.Mesh(new RoundedBoxGeometry(1.76, 0.08, 0.28, 2, 0.03), paintMat);
+    wing.position.set(0, 0.75, -1.96);
+    bodyGroup.add(wing);
+    [-0.82, 0.82].forEach(x => {
+      const post = new THREE.Mesh(new RoundedBoxGeometry(0.10, 0.22, 0.24, 2, 0.02), paintMat);
+      post.position.set(x, 0.66, -1.95);
+      bodyGroup.add(post);
+    });
+
+    // Iconic full-width NSX lightbar
+    const lightbar = new THREE.Mesh(new RoundedBoxGeometry(1.66, 0.14, 0.08, 2, 0.04), taillightMat);
+    lightbar.position.set(0, 0.52, -2.10);
+    bodyGroup.add(lightbar);
+
+  } else if (carId === 'supra') {
+    // Muscular rounded A80 body
+    const lower = new THREE.Mesh(new RoundedBoxGeometry(1.86, 0.52, 4.32, 2, 0.20), paintMat);
+    lower.position.set(0, 0.49, 0);
+    bodyGroup.add(lower);
+
+    // Wide curvy rear hips
+    const hips = new THREE.Mesh(new RoundedBoxGeometry(1.94, 0.38, 1.65, 2, 0.16), paintMat);
+    hips.position.set(0, 0.50, -1.15);
+    bodyGroup.add(hips);
+
+    // Front intercooler mouth
+    const mouth = new THREE.Mesh(new RoundedBoxGeometry(1.12, 0.24, 0.16, 2, 0.06), trimMat);
+    mouth.position.set(0, 0.34, 2.12);
+    bodyGroup.add(mouth);
+    const intercooler = new THREE.Mesh(new RoundedBoxGeometry(0.95, 0.18, 0.08, 1, 0.02), metalMat);
+    intercooler.position.set(0, 0.34, 2.15);
+    bodyGroup.add(intercooler);
+
+    // Sleek rounded cabin
+    const cabin = new THREE.Mesh(new RoundedBoxGeometry(1.44, 0.44, 1.88, 2, 0.18), glassMat);
+    cabin.position.set(0, 0.84, -0.22);
+    bodyGroup.add(cabin);
+    const roof = new THREE.Mesh(new RoundedBoxGeometry(1.34, 0.10, 1.05, 2, 0.04), paintMat);
+    roof.position.set(0, 1.04, -0.25);
+    bodyGroup.add(roof);
+
+    // Supra multi-bulb headlights
+    [-0.64, 0.64].forEach(x => {
+      const hl = new THREE.Mesh(new RoundedBoxGeometry(0.38, 0.13, 0.16, 2, 0.05), headlightMat);
+      hl.position.set(x, 0.58, 2.08);
+      bodyGroup.add(hl);
+    });
+
+    // Iconic tall rounded Supra Hoop Wing
+    const hoop = new THREE.Mesh(new RoundedBoxGeometry(1.78, 0.10, 0.32, 2, 0.04), paintMat);
+    hoop.position.set(0, 1.02, -1.94);
+    bodyGroup.add(hoop);
+    [-0.78, 0.78].forEach(x => {
+      const strut = new THREE.Mesh(new RoundedBoxGeometry(0.11, 0.36, 0.24, 2, 0.04), paintMat);
+      strut.position.set(x, 0.84, -1.92);
+      bodyGroup.add(strut);
+    });
+
+    // Supra clustered circle taillights
+    [-0.62, 0.62].forEach(x => {
+      const cluster = new THREE.Mesh(new RoundedBoxGeometry(0.46, 0.16, 0.08, 2, 0.06), taillightMat);
+      cluster.position.set(x, 0.58, -2.14);
+      bodyGroup.add(cluster);
+    });
+
+  } else if (carId === 'r34') {
+    // Aggressive boxy-rounded Skyline silhouette
+    const lower = new THREE.Mesh(new RoundedBoxGeometry(1.84, 0.52, 4.38, 2, 0.13), paintMat);
+    lower.position.set(0, 0.49, 0);
+    bodyGroup.add(lower);
+
+    // Front splitter & blue intercooler
+    const splitter = new THREE.Mesh(new RoundedBoxGeometry(1.88, 0.09, 0.35, 2, 0.03), trimMat);
+    splitter.position.set(0, 0.25, 2.12);
+    bodyGroup.add(splitter);
+    const ic = new THREE.Mesh(new RoundedBoxGeometry(0.96, 0.20, 0.10, 1, 0.02), metalMat);
+    ic.position.set(0, 0.35, 2.16);
+    bodyGroup.add(ic);
+
+    // Sculpted hood bulge/vent
+    const vent = new THREE.Mesh(new RoundedBoxGeometry(0.55, 0.06, 0.45, 2, 0.02), trimMat);
+    vent.position.set(0, 0.76, 1.25);
+    bodyGroup.add(vent);
+
+    // Cabin
+    const cabin = new THREE.Mesh(new RoundedBoxGeometry(1.46, 0.46, 1.98, 2, 0.12), glassMat);
+    cabin.position.set(0, 0.86, -0.18);
+    bodyGroup.add(cabin);
+    const roof = new THREE.Mesh(new RoundedBoxGeometry(1.38, 0.09, 1.15, 2, 0.04), paintMat);
+    roof.position.set(0, 1.07, -0.22);
+    bodyGroup.add(roof);
+
+    // Sharp R34 headlights
+    [-0.64, 0.64].forEach(x => {
+      const hl = new THREE.Mesh(new RoundedBoxGeometry(0.40, 0.13, 0.12, 2, 0.03), headlightMat);
+      hl.position.set(x, 0.58, 2.16);
+      bodyGroup.add(hl);
+    });
+
+    // Tall GT-R R34 Wing with carbon blade
+    const blade = new THREE.Mesh(new RoundedBoxGeometry(1.80, 0.07, 0.30, 2, 0.02), trimMat);
+    blade.position.set(0, 1.06, -1.98);
+    bodyGroup.add(blade);
+    [-0.86, 0.86].forEach(x => {
+      const plate = new THREE.Mesh(new RoundedBoxGeometry(0.05, 0.24, 0.36, 2, 0.02), paintMat);
+      plate.position.set(x, 1.04, -1.98);
+      bodyGroup.add(plate);
+    });
+    [-0.55, 0.55].forEach(x => {
+      const leg = new THREE.Mesh(new RoundedBoxGeometry(0.09, 0.34, 0.18, 2, 0.02), paintMat);
+      leg.position.set(x, 0.89, -1.96);
+      bodyGroup.add(leg);
+    });
+
+    // Iconic Quad Round GT-R Taillights!
+    [
+      { x: -0.68, r: 0.11 },
+      { x: -0.40, r: 0.085 },
+      { x: 0.40, r: 0.085 },
+      { x: 0.68, r: 0.11 }
+    ].forEach(t => {
+      const ring = new THREE.Mesh(new THREE.CylinderGeometry(t.r, t.r, 0.07, 12), taillightMat);
+      ring.rotation.x = Math.PI / 2;
+      ring.position.set(t.x, 0.58, -2.18);
+      bodyGroup.add(ring);
+    });
+  }
+
+  // Exhaust tip + Boost Flame cone
+  const exhaust = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.22, 10), metalMat);
+  exhaust.rotation.x = Math.PI / 2;
+  exhaust.position.set(0.45, 0.28, -2.16);
+  bodyGroup.add(exhaust);
+
+  const flameMat = new THREE.MeshBasicMaterial({ color: 0x38f2ff, transparent: true, opacity: 0 });
+  const flame = new THREE.Mesh(new THREE.ConeGeometry(0.11, 0.65, 8), flameMat);
+  flame.rotation.x = -Math.PI / 2;
+  flame.position.set(0.45, 0.28, -2.48);
+  bodyGroup.add(flame);
+
+  // Wheels (Front steer pivots + 4 rotating wheels)
+  const wheelZFront = carId === 'miata' ? 1.18 : 1.38;
+  const wheelZRear = carId === 'miata' ? -1.16 : -1.36;
+  const wheelX = carId === 'miata' ? 0.80 : 0.88;
+
+  const frontLeftPivot = new THREE.Group();
+  frontLeftPivot.position.set(-wheelX, 0.34, wheelZFront);
+  const wFL = makeWheel();
+  frontLeftPivot.add(wFL);
+  root.add(frontLeftPivot);
+
+  const frontRightPivot = new THREE.Group();
+  frontRightPivot.position.set(wheelX, 0.34, wheelZFront);
+  const wFR = makeWheel();
+  frontRightPivot.add(wFR);
+  root.add(frontRightPivot);
+
+  const wRL = makeWheel();
+  wRL.position.set(-wheelX, 0.34, wheelZRear);
+  root.add(wRL);
+
+  const wRR = makeWheel();
+  wRR.position.set(wheelX, 0.34, wheelZRear);
+  root.add(wRR);
+
+  // Underglow Neon Plane + Light
+  const underglowMat = new THREE.MeshBasicMaterial({
+    color: 0xff4fa3,
+    transparent: true,
+    opacity: 0.42,
+    depthWrite: false
+  });
+  const underglowPlane = new THREE.Mesh(new THREE.PlaneGeometry(2.3, 4.5), underglowMat);
+  underglowPlane.rotation.x = -Math.PI / 2;
+  underglowPlane.position.y = 0.04;
+  root.add(underglowPlane);
+
+  const underglowLight = new THREE.PointLight(0xff4fa3, 2.2, 9);
+  underglowLight.position.set(0, 0.28, 0);
+  root.add(underglowLight);
+
+  // Headlight projection pool
+  const headlightBeam = new THREE.SpotLight(0xdff6ff, 9, 36, Math.PI / 5, 0.55, 1.3);
+  headlightBeam.position.set(0, 0.72, 1.9);
+  const beamTarget = new THREE.Object3D();
+  beamTarget.position.set(0, 0.0, 16);
+  bodyGroup.add(beamTarget);
+  headlightBeam.target = beamTarget;
+  bodyGroup.add(headlightBeam);
+
+  return {
+    root,
+    bodyGroup,
+    paintMat,
+    headlightMat,
+    taillightMat,
+    popupPivots,
+    frontLeftPivot,
+    frontRightPivot,
+    wheels: [wFL, wFR, wRL, wRR],
+    flame,
+    flameMat,
+    underglowPlane,
+    underglowMat,
+    underglowLight,
+    headlightBeam
+  };
+}
+
+/* =========================================================
+   3. THREE.JS SCENE, PIXELATED + BLOOM PIPELINE & TOKYO CITY
+========================================================= */
+const canvas = document.getElementById('game-canvas');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
+renderer.setPixelRatio(1);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.12;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x090b18);
+scene.fog = new THREE.FogExp2(0x0b0e20, 0.0052);
+
+const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.3, 520);
+
+const composer = new EffectComposer(renderer);
+const renderPass = new RenderPass(scene, camera);
+composer.addPass(renderPass);
+
+const bloomPass = new UnrealBloomPass(
+  new THREE.Vector2(window.innerWidth, window.innerHeight),
+  1.15,  // strength
+  0.55,  // radius
+  0.52   // threshold
+);
+composer.addPass(bloomPass);
+
+const outputPass = new OutputPass();
+composer.addPass(outputPass);
+
+let pixelScale = 0.38;
+function updateResolution() {
+  const w = Math.max(180, Math.floor(window.innerWidth * pixelScale));
+  const h = Math.max(120, Math.floor(window.innerHeight * pixelScale));
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(w, h, false);
+  composer.setSize(w, h);
+  bloomPass.resolution.set(w, h);
+}
+updateResolution();
+window.addEventListener('resize', updateResolution);
+
+// Ambient + Twilight Moon Lighting
+const hemiLight = new THREE.HemisphereLight(0x6c8cff, 0x1a1026, 1.05);
+scene.add(hemiLight);
+
+const moonLight = new THREE.DirectionalLight(0xaec6ff, 0.85);
+moonLight.position.set(80, 140, -60);
+scene.add(moonLight);
+
+// Glowing Starry / Horizon Sky Dome
+const skyGeo = new THREE.SphereGeometry(390, 20, 14);
+const skyMat = new THREE.ShaderMaterial({
+  side: THREE.BackSide,
+  depthWrite: false,
+  uniforms: {
+    topColor: { value: new THREE.Color(0x050714) },
+    midColor: { value: new THREE.Color(0x161233) },
+    horizonColor: { value: new THREE.Color(0x3a1848) }
+  },
+  vertexShader: `
+    varying vec3 vWorldPos;
+    void main() {
+      vec4 wp = modelMatrix * vec4(position, 1.0);
+      vWorldPos = wp.xyz;
+      gl_Position = projectionMatrix * viewMatrix * wp;
+    }
+  `,
+  fragmentShader: `
+    uniform vec3 topColor;
+    uniform vec3 midColor;
+    uniform vec3 horizonColor;
+    varying vec3 vWorldPos;
+    void main() {
+      float h = normalize(vWorldPos).y;
+      vec3 col = mix(horizonColor, midColor, smoothstep(-0.05, 0.25, h));
+      col = mix(col, topColor, smoothstep(0.25, 0.85, h));
+      gl_FragColor = vec4(col, 1.0);
+    }
+  `
+});
+scene.add(new THREE.Mesh(skyGeo, skyMat));
+
+// Stars
+const starPts = [];
+for (let i = 0; i < 450; i++) {
+  const theta = Math.random() * Math.PI * 2;
+  const phi = Math.random() * Math.PI * 0.45;
+  const r = 340;
+  starPts.push(
+    r * Math.sin(phi) * Math.cos(theta),
+    r * Math.cos(phi) + 15,
+    r * Math.sin(phi) * Math.sin(theta)
+  );
+}
+const starGeo = new THREE.BufferGeometry();
+starGeo.setAttribute('position', new THREE.Float32BufferAttribute(starPts, 3));
+scene.add(new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xd9ecff, size: 1.6, transparent: true, opacity: 0.75 })));
+
+/* =========================================================
+   4. BUILD WHOLE TOKYO CITY, ROADS, TOWER & DRIFT ARENA
+========================================================= */
+const colliders = []; // { minX, maxX, minZ, maxZ }
+const ramps = [];     // { minX, maxX, minZ, maxZ, dirZ, height, length }
+const dynamicProps = []; // interactive cones/barrels { mesh, x, z, vx, vz, radius }
+const driftGates = [];   // glowing neon checkpoints { group, x, z, radius, cooldown, ring }
+
+// Tokyo Bay Water around the island
+const water = new THREE.Mesh(
+  new THREE.PlaneGeometry(1100, 1100),
+  new THREE.MeshStandardMaterial({ color: 0x061024, roughness: 0.18, metalness: 0.82 })
+);
+water.rotation.x = -Math.PI / 2;
+water.position.y = -1.2;
+scene.add(water);
+
+// Main Island Ground (440x440)
+const ground = new THREE.Mesh(
+  new THREE.BoxGeometry(440, 1.2, 440),
+  new THREE.MeshStandardMaterial({ color: 0x141724, roughness: 0.88, metalness: 0.12 })
+);
+ground.position.y = -0.6;
+scene.add(ground);
+
+// Asphalt Road Helper
+const asphaltMat = new THREE.MeshStandardMaterial({ color: 0x1b1e2b, roughness: 0.62, metalness: 0.2 });
+const lineGlowMat = new THREE.MeshBasicMaterial({ color: 0xffd15c });
+const cyanLineMat = new THREE.MeshBasicMaterial({ color: 0x38f2ff });
+const pinkLineMat = new THREE.MeshBasicMaterial({ color: 0xff4fa3 });
+
+function addRoadStrip(x, z, w, d, y = 0.02) {
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), asphaltMat);
+  m.rotation.x = -Math.PI / 2;
+  m.position.set(x, y, z);
+  scene.add(m);
+}
+
+// Main Cross Boulevards (Shibuya North-South & East-West)
+addRoadStrip(0, 0, 24, 410, 0.02);
+addRoadStrip(0, 0, 410, 24, 0.02);
+
+// Outer Wangan Ring Highway (4 straight segments + rounded corner aprons)
+addRoadStrip(0, -175, 360, 24, 0.025);
+addRoadStrip(0, 175, 360, 24, 0.025);
+addRoadStrip(-175, 0, 24, 360, 0.025);
+addRoadStrip(175, 0, 24, 360, 0.025);
+
+// Glowing road center dashes
+for (let i = -180; i <= 180; i += 14) {
+  if (Math.abs(i) < 22) continue;
+  const d1 = new THREE.Mesh(new THREE.PlaneGeometry(0.45, 5.5), lineGlowMat);
+  d1.rotation.x = -Math.PI / 2; d1.position.set(0, 0.035, i);
+  scene.add(d1);
+
+  const d2 = new THREE.Mesh(new THREE.PlaneGeometry(5.5, 0.45), lineGlowMat);
+  d2.rotation.x = -Math.PI / 2; d2.position.set(i, 0.035, 0);
+  scene.add(d2);
+}
+
+// Shibuya Scramble Central Neon Plaza
+const scramble = new THREE.Mesh(new THREE.CylinderGeometry(28, 28, 0.06, 8), asphaltMat);
+scramble.position.set(0, 0.02, 0);
+scene.add(scramble);
+
+const scrambleRing = new THREE.Mesh(
+  new THREE.RingGeometry(24, 25.5, 32),
+  new THREE.MeshBasicMaterial({ color: 0xff4fa3, side: THREE.DoubleSide })
+);
+scrambleRing.rotation.x = -Math.PI / 2;
+scrambleRing.position.set(0, 0.05, 0);
+scene.add(scrambleRing);
+
+// Crosswalk stripes at Shibuya
+for (let a = 0; a < 4; a++) {
+  const grp = new THREE.Group();
+  grp.rotation.y = (a * Math.PI) / 2;
+  for (let s = -8; s <= 8; s += 2.6) {
+    const stripe = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 4.8), new THREE.MeshBasicMaterial({ color: 0xdbe8ff }));
+    stripe.rotation.x = -Math.PI / 2;
+    stripe.position.set(s, 0.04, 20);
+    grp.add(stripe);
+  }
+  scene.add(grp);
+}
+
+// Daikoku Drift Park (SE Quadrant: x 45..145, z 45..145)
+const daikokuPad = new THREE.Mesh(
+  new RoundedBoxGeometry(106, 0.12, 106, 2, 4),
+  new THREE.MeshStandardMaterial({ color: 0x191d2e, roughness: 0.55, metalness: 0.25 })
+);
+daikokuPad.position.set(95, 0.01, 95);
+scene.add(daikokuPad);
+
+const daikokuNeon = new THREE.Mesh(
+  new THREE.RingGeometry(26, 27.2, 36),
+  cyanLineMat
+);
+daikokuNeon.rotation.x = -Math.PI / 2;
+daikokuNeon.position.set(95, 0.09, 95);
+scene.add(daikokuNeon);
+
+// Jump Ramps in Daikoku Park!
+function addJumpRamp(x, z, w, length, height, flipZ = false) {
+  const shape = new THREE.Shape();
+  shape.moveTo(0, 0);
+  shape.lineTo(length, 0);
+  shape.lineTo(length, height);
+  shape.closePath();
+
+  const geo = new THREE.ExtrudeGeometry(shape, { depth: w, bevelEnabled: false });
+  geo.rotateY(flipZ ? Math.PI / 2 : -Math.PI / 2);
+  const rampMat = new THREE.MeshStandardMaterial({ color: 0x262c44, roughness: 0.45 });
+  const mesh = new THREE.Mesh(geo, rampMat);
+  mesh.position.set(x + (flipZ ? -w / 2 : w / 2), 0.05, z + (flipZ ? length / 2 : -length / 2));
+  scene.add(mesh);
+
+  // Glowing lip edge
+  const lip = new THREE.Mesh(new THREE.BoxGeometry(w, 0.14, 0.4), pinkLineMat);
+  lip.position.set(x, height + 0.04, z + (flipZ ? -length / 2 : length / 2));
+  scene.add(lip);
+
+  ramps.push({
+    minX: x - w / 2,
+    maxX: x + w / 2,
+    minZ: z - length / 2,
+    maxZ: z + length / 2,
+    height,
+    length,
+    flipZ
+  });
+}
+addJumpRamp(95, 62, 11, 14, 2.6, false);
+addJumpRamp(95, 128, 11, 14, 2.6, true);
+
+// Rounded Low-Poly Tokyo Buildings + Glowing Neon Signs
+const neonColors = [0xff4fa3, 0x38f2ff, 0xffd15c, 0x9e47ff, 0x2ee6b8, 0xff5b38];
+const buildingMat = new THREE.MeshStandardMaterial({ color: 0x15192b, roughness: 0.72, metalness: 0.25 });
+
+function addBuilding(x, z, w, d, h) {
+  const grp = new THREE.Group();
+  grp.position.set(x, 0, z);
+
+  const radius = Math.min(1.6, Math.min(w, d) * 0.12);
+  const body = new THREE.Mesh(new RoundedBoxGeometry(w, h, d, 2, radius), buildingMat);
+  body.position.y = h / 2;
+  grp.add(body);
+
+  // Glowing roof crown trim
+  const neonCol = neonColors[Math.floor(Math.random() * neonColors.length)];
+  const neonMat = new THREE.MeshBasicMaterial({ color: neonCol });
+
+  const crown = new THREE.Mesh(new RoundedBoxGeometry(w + 0.3, 0.45, d + 0.3, 1, 0.15), neonMat);
+  crown.position.y = h - 0.5;
+  grp.add(crown);
+
+  // Glowing low-poly window strips
+  const stripCount = Math.max(2, Math.floor(h / 5));
+  for (let i = 1; i < stripCount; i++) {
+    if (Math.random() < 0.28) continue;
+    const wy = i * 4.5;
+    const winMat = new THREE.MeshBasicMaterial({
+      color: Math.random() > 0.5 ? 0xffe299 : 0x7ae8ff
+    });
+    const band = new THREE.Mesh(new THREE.BoxGeometry(w + 0.12, 0.55, d * 0.72), winMat);
+    band.position.y = wy;
+    grp.add(band);
+
+    const band2 = new THREE.Mesh(new THREE.BoxGeometry(w * 0.72, 0.55, d + 0.12), winMat);
+    band2.position.y = wy;
+    grp.add(band2);
+  }
+
+  // Vertical Neon Kanji-style Billboard
+  if (Math.random() > 0.35) {
+    const signCol = neonColors[Math.floor(Math.random() * neonColors.length)];
+    const signH = Math.min(h * 0.55, 11);
+    const sign = new THREE.Mesh(
+      new RoundedBoxGeometry(1.5, signH, 0.45, 2, 0.15),
+      new THREE.MeshBasicMaterial({ color: signCol })
+    );
+    const side = Math.random() > 0.5 ? 1 : -1;
+    sign.position.set(side * (w / 2 + 0.75), h * 0.45, (Math.random() - 0.5) * d * 0.4);
+    grp.add(sign);
+  }
+
+  scene.add(grp);
+  colliders.push({
+    minX: x - w / 2,
+    maxX: x + w / 2,
+    minZ: z - d / 2,
+    maxZ: z + d / 2
+  });
+}
+
+// Populate 4 Tokyo Districts neatly outside roads
+// NE Quadrant (Akihabara Electric Town: x 30..145, z -145..-30)
+const akiLayout = [
+  [55, -52, 22, 18, 28], [92, -50, 24, 20, 42], [130, -52, 20, 18, 24],
+  [52, -92, 20, 24, 36], [94, -95, 26, 22, 54], [132, -92, 18, 20, 31],
+  [56, -132, 22, 18, 26], [96, -134, 24, 18, 38], [132, -132, 20, 20, 22]
+];
+akiLayout.forEach(b => addBuilding(...b));
+
+// SW Quadrant (Shinjuku Skyscrapers: x -145..-30, z 30..145)
+const shinjukuLayout = [
+  [-52, 54, 20, 20, 48], [-94, 52, 24, 22, 62], [-132, 54, 20, 18, 34],
+  [-54, 96, 22, 22, 56], [-96, 98, 26, 26, 76], [-134, 96, 18, 22, 42],
+  [-52, 134, 22, 18, 32], [-94, 136, 22, 18, 44], [-134, 134, 20, 20, 29]
+];
+shinjukuLayout.forEach(b => addBuilding(...b));
+
+// NW Quadrant (Shiba Park + Tokyo Tower at -92, -92)
+const nwBuildings = [
+  [-45, -45, 16, 16, 26], [-138, -48, 18, 18, 32],
+  [-45, -138, 18, 16, 28], [-138, -138, 18, 18, 30]
+];
+nwBuildings.forEach(b => addBuilding(...b));
+
+// Iconic Glowing Tokyo Tower!
+function buildTokyoTower(x, z) {
+  const tower = new THREE.Group();
+  tower.position.set(x, 0, z);
+  const orangeGlow = new THREE.MeshStandardMaterial({ color: 0xff5522, emissive: 0xff4411, emissiveIntensity: 1.5, roughness: 0.4 });
+  const whiteGlow = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffeedd, emissiveIntensity: 1.4, roughness: 0.4 });
+
+  // 4 tapered legs
+  const legGeom = new THREE.CylinderGeometry(1.1, 2.2, 34, 6);
+  [[-6, -6], [6, -6], [-6, 6], [6, 6]].forEach(([lx, lz]) => {
+    const leg = new THREE.Mesh(legGeom, orangeGlow);
+    leg.position.set(lx, 16, lz);
+    leg.lookAt(0, 48, 0);
+    leg.rotateX(Math.PI / 2);
+    tower.add(leg);
+  });
+
+  // Main deck
+  const deck1 = new THREE.Mesh(new RoundedBoxGeometry(11, 3.2, 11, 2, 0.8), whiteGlow);
+  deck1.position.y = 32;
+  tower.add(deck1);
+
+  // Upper spire
+  const mid = new THREE.Mesh(new THREE.CylinderGeometry(1.8, 4.5, 28, 8), orangeGlow);
+  mid.position.y = 47;
+  tower.add(mid);
+
+  const deck2 = new THREE.Mesh(new RoundedBoxGeometry(5.5, 2.2, 5.5, 2, 0.5), whiteGlow);
+  deck2.position.y = 60;
+  tower.add(deck2);
+
+  const needle = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 1.2, 22, 6), whiteGlow);
+  needle.position.y = 72;
+  tower.add(needle);
+
+  const beacon = new THREE.Mesh(new THREE.SphereGeometry(0.9, 8, 8), new THREE.MeshBasicMaterial({ color: 0xff2255 }));
+  beacon.position.y = 83.5;
+  tower.add(beacon);
+
+  scene.add(tower);
+  colliders.push({ minX: x - 8, maxX: x + 8, minZ: z - 8, maxZ: z + 8 });
+}
+buildTokyoTower(-92, -92);
+
+// Glowing Rounded Cherry Blossom (Sakura) Trees around Tokyo Tower & Streets
+const trunkMat = new THREE.MeshStandardMaterial({ color: 0x3b2622, roughness: 0.9 });
+const sakuraMat = new THREE.MeshStandardMaterial({
+  color: 0xff8dc7,
+  emissive: 0xff3b9a,
+  emissiveIntensity: 0.42,
+  roughness: 0.6
+});
+
+function addSakuraTree(x, z, scale = 1) {
+  const t = new THREE.Group();
+  t.position.set(x, 0, z);
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.28 * scale, 0.45 * scale, 3.2 * scale, 7), trunkMat);
+  trunk.position.y = 1.6 * scale;
+  t.add(trunk);
+
+  [[0, 4.0, 0, 2.1], [-1.1, 3.4, 0.7, 1.45], [1.1, 3.5, -0.6, 1.5], [0.3, 4.8, 0.6, 1.35]].forEach(([cx, cy, cz, r]) => {
+    const puff = new THREE.Mesh(new THREE.IcosahedronGeometry(r * scale, 1), sakuraMat);
+    puff.position.set(cx * scale, cy * scale, cz * scale);
+    t.add(puff);
+  });
+  scene.add(t);
+}
+
+const sakuraSpots = [
+  [-68, -68], [-116, -68], [-68, -116], [-116, -116], [-92, -62], [-92, -122],
+  [-20, -24], [20, -24], [-20, 24], [20, 24],
+  [46, 46], [144, 46], [46, 144], [144, 144],
+  [-150, 198], [-80, 198], [0, 198], [80, 198], [150, 198]
+];
+sakuraSpots.forEach(([x, z]) => addSakuraTree(x, z, 0.95 + Math.random() * 0.35));
+
+// Curvy Glowing Streetlamps & Highway Arches
+const poleMat = new THREE.MeshStandardMaterial({ color: 0x2a314a, metalness: 0.6, roughness: 0.4 });
+const bulbMat = new THREE.MeshBasicMaterial({ color: 0xffd584 });
+for (let i = -150; i <= 150; i += 38) {
+  if (Math.abs(i) < 26) continue;
+  [[13.5, i, -1], [-13.5, i, 1]].forEach(([x, z, dir]) => {
+    const lamp = new THREE.Group();
+    lamp.position.set(x, 0, z);
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.16, 6.2, 6), poleMat);
+    pole.position.y = 3.1;
+    lamp.add(pole);
+    const arm = new THREE.Mesh(new RoundedBoxGeometry(1.8, 0.12, 0.14, 1, 0.04), poleMat);
+    arm.position.set(dir * 0.85, 6.1, 0);
+    lamp.add(arm);
+    const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.28, 6, 6), bulbMat);
+    bulb.position.set(dir * 1.55, 5.95, 0);
+    lamp.add(bulb);
+    scene.add(lamp);
+  });
+}
+
+// Rainbow Bridge Silhouette across Tokyo Bay (South Horizon!)
+function buildRainbowBridge() {
+  const bridge = new THREE.Group();
+  bridge.position.set(0, 0, 265);
+  const deck = new THREE.Mesh(new RoundedBoxGeometry(360, 2.5, 14, 1, 0.5), new THREE.MeshStandardMaterial({ color: 0x222a44 }));
+  deck.position.y = 14;
+  bridge.add(deck);
+
+  [-85, 85].forEach(px => {
+    const tower = new THREE.Mesh(new RoundedBoxGeometry(6, 46, 14, 2, 0.8), new THREE.MeshStandardMaterial({ color: 0xd9e6ff, emissive: 0x385599, emissiveIntensity: 0.7 }));
+    tower.position.set(px, 23, 0);
+    bridge.add(tower);
+  });
+
+  // Glowing rainbow cable strip
+  const cable = new THREE.Mesh(new THREE.BoxGeometry(340, 0.8, 0.8), new THREE.MeshBasicMaterial({ color: 0x38f2ff }));
+  cable.position.y = 15.8;
+  bridge.add(cable);
+  scene.add(bridge);
+}
+buildRainbowBridge();
+
+// Glowing Guardrail Seawalls at Island Perimeter (±214)
+const wallMat = new THREE.MeshStandardMaterial({ color: 0x252b42, roughness: 0.5 });
+const wallGlow = new THREE.MeshBasicMaterial({ color: 0x38f2ff });
+[
+  [0, -214, 428, 2.2],
+  [0, 214, 428, 2.2],
+  [-214, 0, 2.2, 428],
+  [214, 0, 2.2, 428]
+].forEach(([wx, wz, ww, wd]) => {
+  const w = new THREE.Mesh(new THREE.BoxGeometry(ww, 1.5, wd), wallMat);
+  w.position.set(wx, 0.75, wz);
+  scene.add(w);
+  const strip = new THREE.Mesh(new THREE.BoxGeometry(ww, 0.2, wd), wallGlow);
+  strip.position.set(wx, 1.55, wz);
+  scene.add(strip);
+});
+
+// Neon Drift Gates scattered across Tokyo!
+const gateSpots = [
+  [0, -90, 0],
+  [0, 90, 0],
+  [-95, 0, Math.PI / 2],
+  [95, 0, Math.PI / 2],
+  [95, 95, Math.PI / 4],
+  [-175, -90, 0],
+  [175, 90, 0],
+  [0, -175, Math.PI / 2],
+  [0, 175, Math.PI / 2]
+];
+gateSpots.forEach(([gx, gz, rotY], idx) => {
+  const grp = new THREE.Group();
+  grp.position.set(gx, 0, gz);
+  grp.rotation.y = rotY;
+
+  const col = idx % 2 === 0 ? 0xff4fa3 : 0x38f2ff;
+  const ring = new THREE.Mesh(
+    new THREE.TorusGeometry(6.8, 0.28, 8, 20, Math.PI),
+    new THREE.MeshBasicMaterial({ color: col })
+  );
+  ring.position.y = 0.2;
+  grp.add(ring);
+
+  const floorLine = new THREE.Mesh(
+    new THREE.PlaneGeometry(13.2, 1.2),
+    new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.45, side: THREE.DoubleSide })
+  );
+  floorLine.rotation.x = -Math.PI / 2;
+  floorLine.position.y = 0.08;
+  grp.add(floorLine);
+
+  scene.add(grp);
+  driftGates.push({ group: grp, x: gx, z: gz, radius: 7.4, cooldown: 0, ring });
+});
+
+// Interactive Knockable Glowing Cones in Daikoku & Shibuya!
+const coneGeo = new THREE.ConeGeometry(0.45, 1.15, 8);
+const coneMat = new THREE.MeshStandardMaterial({ color: 0xff6a22, emissive: 0xff3b00, emissiveIntensity: 0.7, roughness: 0.4 });
+const coneCoords = [
+  [78, 80], [112, 80], [78, 110], [112, 110],
+  [88, 95], [102, 95], [95, 86], [95, 104],
+  [-18, -18], [18, -18], [-18, 18], [18, 18]
+];
+coneCoords.forEach(([cx, cz]) => {
+  const mesh = new THREE.Mesh(coneGeo, coneMat);
+  mesh.position.set(cx, 0.58, cz);
+  scene.add(mesh);
+  dynamicProps.push({ mesh, x: cx, z: cz, vx: 0, vz: 0, rotVel: 0, radius: 0.65 });
+});
+
+/* =========================================================
+   5. PARTICLE POOLS: TIRE SMOKE, SKIDMARKS, SPARKS & SAKURA
+========================================================= */
+// Tire Smoke Pool (rounded low-poly clouds)
+const SMOKE_COUNT = 110;
+const smokePool = [];
+const smokeGeo = new THREE.IcosahedronGeometry(0.48, 1);
+for (let i = 0; i < SMOKE_COUNT; i++) {
+  const mat = new THREE.MeshBasicMaterial({ color: 0xdde8ff, transparent: true, opacity: 0 });
+  const mesh = new THREE.Mesh(smokeGeo, mat);
+  mesh.visible = false;
+  scene.add(mesh);
+  smokePool.push({ mesh, mat, life: 0, maxLife: 1, vx: 0, vy: 0, vz: 0 });
+}
+let smokeCursor = 0;
+function spawnSmoke(x, y, z, colorHex = 0xdbe6ff) {
+  const p = smokePool[smokeCursor];
+  smokeCursor = (smokeCursor + 1) % SMOKE_COUNT;
+  p.mesh.visible = true;
+  p.mesh.position.set(x + (Math.random() - 0.5) * 0.35, y + 0.18, z + (Math.random() - 0.5) * 0.35);
+  p.mesh.scale.setScalar(0.55);
+  p.mat.color.setHex(colorHex);
+  p.mat.opacity = 0.52;
+  p.life = 0;
+  p.maxLife = 0.65 + Math.random() * 0.35;
+  p.vx = (Math.random() - 0.5) * 1.6;
+  p.vy = 1.2 + Math.random() * 1.1;
+  p.vz = (Math.random() - 0.5) * 1.6;
+}
+
+// Skidmarks Ring Buffer
+const SKID_COUNT = 260;
+const skidPool = [];
+const skidGeo = new THREE.PlaneGeometry(0.32, 0.95);
+const skidMat = new THREE.MeshBasicMaterial({ color: 0x05060a, transparent: true, opacity: 0.58, depthWrite: false });
+for (let i = 0; i < SKID_COUNT; i++) {
+  const m = new THREE.Mesh(skidGeo, skidMat);
+  m.rotation.x = -Math.PI / 2;
+  m.visible = false;
+  scene.add(m);
+  skidPool.push(m);
+}
+let skidCursor = 0;
+function spawnSkid(x, y, z, yaw) {
+  const m = skidPool[skidCursor];
+  skidCursor = (skidCursor + 1) % SKID_COUNT;
+  m.visible = true;
+  m.position.set(x, y + 0.06, z);
+  m.rotation.set(-Math.PI / 2, 0, yaw);
+}
+
+// Collision Sparks Pool
+const SPARK_COUNT = 50;
+const sparkPool = [];
+const sparkGeo = new THREE.BoxGeometry(0.14, 0.14, 0.36);
+for (let i = 0; i < SPARK_COUNT; i++) {
+  const mat = new THREE.MeshBasicMaterial({ color: 0xffd15c, transparent: true, opacity: 0 });
+  const mesh = new THREE.Mesh(sparkGeo, mat);
+  mesh.visible = false;
+  scene.add(mesh);
+  sparkPool.push({ mesh, mat, life: 0, vx: 0, vy: 0, vz: 0 });
+}
+let sparkCursor = 0;
+function spawnSparks(x, y, z, count = 8) {
+  for (let i = 0; i < count; i++) {
+    const s = sparkPool[sparkCursor];
+    sparkCursor = (sparkCursor + 1) % SPARK_COUNT;
+    s.mesh.visible = true;
+    s.mesh.position.set(x, y + 0.4, z);
+    s.mat.opacity = 1;
+    s.life = 0.42;
+    s.vx = (Math.random() - 0.5) * 18;
+    s.vy = 3 + Math.random() * 8;
+    s.vz = (Math.random() - 0.5) * 18;
+  }
+}
+
+// Drifting Glowing Sakura Petals in Tokyo Air
+const PETAL_COUNT = 220;
+const petalPositions = new Float32Array(PETAL_COUNT * 3);
+for (let i = 0; i < PETAL_COUNT; i++) {
+  petalPositions[i * 3] = (Math.random() - 0.5) * 320;
+  petalPositions[i * 3 + 1] = Math.random() * 32 + 1;
+  petalPositions[i * 3 + 2] = (Math.random() - 0.5) * 320;
+}
+const petalGeo = new THREE.BufferGeometry();
+petalGeo.setAttribute('position', new THREE.BufferAttribute(petalPositions, 3));
+const petalPoints = new THREE.Points(
+  petalGeo,
+  new THREE.PointsMaterial({ color: 0xff8ed1, size: 0.75, transparent: true, opacity: 0.85 })
+);
+scene.add(petalPoints);
+
+/* =========================================================
+   6. ACTIVE PLAYER CAR, DRIFT PHYSICS & INTERACTIVE STATE
+========================================================= */
+let currentCarId = 'miata';
+let currentCar = buildJdmCar('miata', CAR_SPECS.miata.defaultColor);
+scene.add(currentCar.root);
+
+const state = {
+  x: 0,
+  y: 0,
+  z: 22,
+  vy: 0,
+  vx: 0,
+  vz: 0,
+  yaw: Math.PI, // facing North down Shibuya
+  steerVisual: 0,
+  wheelSpin: 0,
+  nitro: 100,
+  headlights: true,
+  neons: true,
+  popupAngle: 0,
+  camMode: 0, // 0 Chase, 1 Hood, 2 Cinematic Orbit
+  orbitYawOffset: 0,
+  orbitPitch: 0.24,
+  lastDragTime: 0,
+
+  // Drift Scoring
+  totalScore: 0,
+  bestDrift: 0,
+  currentDriftScore: 0,
+  driftCombo: 1,
+  driftGraceTimer: 0,
+  gatesCleared: 0,
+  rpm: 0.15,
+  gear: 1,
+  skidTick: 0
+};
+
+function switchCar(carId, customColor = null) {
+  const prevPaint = customColor || CAR_SPECS[carId].defaultColor;
+  scene.remove(currentCar.root);
+  currentCarId = carId;
+  currentCar = buildJdmCar(carId, prevPaint);
+  scene.add(currentCar.root);
+
+  // Sync toggles
+  currentCar.headlightBeam.visible = state.headlights;
+  currentCar.underglowPlane.visible = state.neons;
+  currentCar.underglowLight.visible = state.neons;
+  state.popupAngle = state.headlights ? -0.95 : 0;
+
+  // Update active card UI
+  document.querySelectorAll('.car-card').forEach(c => {
+    c.classList.toggle('active', c.dataset.car === carId);
+  });
+
+  // Update active paint swatch
+  document.querySelectorAll('.swatch').forEach(s => {
+    s.classList.toggle('active', s.dataset.color.toLowerCase() === prevPaint.toLowerCase());
+  });
+
+  audio.playUiClick();
+}
+
+function getGroundHeight(x, z) {
+  for (const r of ramps) {
+    if (x >= r.minX && x <= r.maxX && z >= r.minZ && z <= r.maxZ) {
+      const t = r.flipZ
+        ? (r.maxZ - z) / r.length
+        : (z - r.minZ) / r.length;
+      return Math.max(0, Math.min(r.height, t * r.height));
+    }
+  }
+  return 0;
+}
+
+function getTokyoZone(x, z) {
+  if (Math.hypot(x, z) < 35) return 'SHIBUYA SCRAMBLE';
+  if (x > 38 && z > 38 && x < 155 && z < 155) return 'DAIKOKU DRIFT PARK';
+  if (x < -30 && z < -30 && x > -155 && z > -155) return 'TOKYO TOWER PARK';
+  if (x > 25 && z < -25 && x < 155 && z > -155) return 'AKIHABARA NEON';
+  if (x < -25 && z > 25 && x < -155 === false && z < 155) return 'SHINJUKU TOWERS';
+  if (Math.abs(x) > 158 || Math.abs(z) > 158) return 'WANGAN EXPRESSWAY';
+  return 'GINZA BOULEVARD';
+}
+
+/* =========================================================
+   7. INPUTS (KEYBOARD + TOUCH + MOUSE ORBIT)
+========================================================= */
+const keys = {};
+function handleKey(e, down) {
+  keys[e.code] = down;
+  if (down) {
+    audio.init();
+    if (e.code === 'Digit1') switchCar('miata');
+    if (e.code === 'Digit2') switchCar('nsx');
+    if (e.code === 'Digit3') switchCar('supra');
+    if (e.code === 'Digit4') switchCar('r34');
+    if (e.code === 'KeyH') toggleHeadlights();
+    if (e.code === 'KeyN') toggleNeons();
+    if (e.code === 'KeyC') cycleCamera();
+    if (e.code === 'KeyR') resetCar();
+  }
+}
+window.addEventListener('keydown', e => handleKey(e, true));
+window.addEventListener('keyup', e => handleKey(e, false));
+window.addEventListener('pointerdown', () => audio.init(), { once: true });
+
+// Mouse Drag Camera Orbit
+let isDragging = false;
+let lastMouseX = 0, lastMouseY = 0;
+canvas.addEventListener('pointerdown', e => {
+  isDragging = true;
+  lastMouseX = e.clientX;
+  lastMouseY = e.clientY;
+});
+window.addEventListener('pointermove', e => {
+  if (!isDragging) return;
+  const dx = e.clientX - lastMouseX;
+  const dy = e.clientY - lastMouseY;
+  lastMouseX = e.clientX;
+  lastMouseY = e.clientY;
+  state.orbitYawOffset -= dx * 0.007;
+  state.orbitPitch = Math.max(0.06, Math.min(0.85, state.orbitPitch + dy * 0.005));
+  state.lastDragTime = performance.now();
+});
+window.addEventListener('pointerup', () => { isDragging = false; });
+
+/* =========================================================
+   8. INTERACTIVE HUD WIRING
+========================================================= */
+function toggleHeadlights() {
+  state.headlights = !state.headlights;
+  currentCar.headlightBeam.visible = state.headlights;
+  currentCar.headlightMat.emissiveIntensity = state.headlights ? 2.2 : 0.15;
+  document.getElementById('btn-lights').classList.toggle('on', state.headlights);
+  audio.playUiClick();
+}
+
+function toggleNeons() {
+  state.neons = !state.neons;
+  currentCar.underglowPlane.visible = state.neons;
+  currentCar.underglowLight.visible = state.neons;
+  document.getElementById('btn-neon').classList.toggle('on', state.neons);
+  audio.playUiClick();
+}
+
+function cycleCamera() {
+  state.camMode = (state.camMode + 1) % 3;
+  const labels = ['Cam: Chase [C]', 'Cam: Hood [C]', 'Cam: Orbit [C]'];
+  document.getElementById('btn-cam').textContent = labels[state.camMode];
+  audio.playUiClick();
+}
+
+function resetCar() {
+  state.x = 0; state.y = 0; state.z = 22;
+  state.vx = 0; state.vy = 0; state.vz = 0;
+  state.yaw = Math.PI;
+  state.nitro = 100;
+  audio.playUiClick();
+}
+
+document.querySelectorAll('.car-card').forEach(card => {
+  card.addEventListener('click', () => {
+    audio.init();
+    switchCar(card.dataset.car);
+  });
+});
+
+document.querySelectorAll('.swatch').forEach(sw => {
+  sw.addEventListener('click', () => {
+    audio.init();
+    const col = sw.dataset.color;
+    currentCar.paintMat.color.set(col);
+    currentCar.underglowMat.color.set(col);
+    currentCar.underglowLight.color.set(col);
+    document.querySelectorAll('.swatch').forEach(s => s.classList.remove('active'));
+    sw.classList.add('active');
+    audio.playUiClick();
+  });
+});
+
+document.getElementById('studio-toggle').addEventListener('click', () => {
+  const body = document.getElementById('studio-body');
+  const collapsed = body.classList.toggle('collapsed');
+  document.getElementById('studio-arrow').textContent = collapsed ? '▸' : '▾';
+});
+
+document.getElementById('sl-pixel').addEventListener('input', e => {
+  pixelScale = parseFloat(e.target.value);
+  document.getElementById('lbl-pixel').textContent = pixelScale.toFixed(2) + 'x';
+  updateResolution();
+});
+
+document.getElementById('sl-bloom').addEventListener('input', e => {
+  const v = parseFloat(e.target.value);
+  bloomPass.strength = v;
+  document.getElementById('lbl-bloom').textContent = v.toFixed(2);
+});
+
+document.getElementById('sl-vol').addEventListener('input', e => {
+  const v = parseFloat(e.target.value);
+  audio.setVolume(v);
+  document.getElementById('lbl-vol').textContent = Math.round(v * 100) + '%';
+});
+
+document.getElementById('btn-lights').addEventListener('click', toggleHeadlights);
+document.getElementById('btn-neon').addEventListener('click', toggleNeons);
+document.getElementById('btn-cam').addEventListener('click', cycleCamera);
+document.getElementById('btn-reset').addEventListener('click', resetCar);
+document.getElementById('btn-synth').addEventListener('click', e => {
+  audio.init();
+  const next = !audio.synthEnabled;
+  audio.setSynth(next);
+  e.target.classList.toggle('on', next);
+  audio.playUiClick();
+});
+
+const touchPad = document.getElementById('touch-pad');
+document.getElementById('btn-pad').addEventListener('click', e => {
+  const show = touchPad.classList.toggle('visible');
+  e.target.classList.toggle('on', show);
+  audio.playUiClick();
+});
+if ('ontouchstart' in window && window.innerWidth < 900) {
+  touchPad.classList.add('visible');
+}
+
+document.querySelectorAll('.pad-btn').forEach(btn => {
+  const code = btn.dataset.key;
+  const setDown = v => {
+    audio.init();
+    keys[code] = v;
+    btn.classList.toggle('held', v);
+  };
+  btn.addEventListener('pointerdown', e => { e.preventDefault(); setDown(true); });
+  btn.addEventListener('pointerup', () => setDown(false));
+  btn.addEventListener('pointerleave', () => setDown(false));
+  btn.addEventListener('pointercancel', () => setDown(false));
+});
+
+/* =========================================================
+   9. MINIMAP RENDERER
+========================================================= */
+const miniCanvas = document.getElementById('minimap');
+const miniCtx = miniCanvas.getContext('2d');
+
+function drawMinimap() {
+  const w = miniCanvas.width;
+  const h = miniCanvas.height;
+  miniCtx.clearRect(0, 0, w, h);
+
+  const scale = w / 440;
+  const toMap = v => (v + 220) * scale;
+
+  // Roads
+  miniCtx.fillStyle = 'rgba(255,255,255,0.16)';
+  miniCtx.fillRect(toMap(-12), 0, 24 * scale, h);
+  miniCtx.fillRect(0, toMap(-12), w, 24 * scale);
+  miniCtx.strokeStyle = 'rgba(56,242,255,0.32)';
+  miniCtx.lineWidth = 4;
+  miniCtx.strokeRect(toMap(-175), toMap(-175), 350 * scale, 350 * scale);
+
+  // Daikoku Pad
+  miniCtx.fillStyle = 'rgba(255,79,163,0.22)';
+  miniCtx.fillRect(toMap(45), toMap(45), 100 * scale, 100 * scale);
+
+  // Tokyo Tower dot
+  miniCtx.fillStyle = '#ff6a29';
+  miniCtx.beginPath();
+  miniCtx.arc(toMap(-92), toMap(-92), 3.2, 0, Math.PI * 2);
+  miniCtx.fill();
+
+  // Gates
+  driftGates.forEach(g => {
+    miniCtx.fillStyle = g.cooldown > 0 ? 'rgba(255,255,255,0.25)' : '#38f2ff';
+    miniCtx.beginPath();
+    miniCtx.arc(toMap(g.x), toMap(g.z), 2.1, 0, Math.PI * 2);
+    miniCtx.fill();
+  });
+
+  // Player arrow
+  const px = toMap(state.x);
+  const pz = toMap(state.z);
+  miniCtx.save();
+  miniCtx.translate(px, pz);
+  miniCtx.rotate(-state.yaw + Math.PI);
+  miniCtx.fillStyle = '#ffd15c';
+  miniCtx.beginPath();
+  miniCtx.moveTo(0, -5);
+  miniCtx.lineTo(3.8, 4);
+  miniCtx.lineTo(-3.8, 4);
+  miniCtx.closePath();
+  miniCtx.fill();
+  miniCtx.restore();
+}
+
+/* =========================================================
+   10. MAIN SIMULATION & RENDER LOOP
+========================================================= */
+let prevTime = performance.now();
+const camPos = new THREE.Vector3(0, 5, 34);
+const camLook = new THREE.Vector3(0, 1, 22);
+
+function animate(now) {
+  requestAnimationFrame(animate);
+  const dt = Math.min(0.05, (now - prevTime) / 1000);
+  prevTime = now;
+
+  const spec = CAR_SPECS[currentCarId];
+
+  // Read inputs
+  const throttle = (keys['KeyW'] || keys['ArrowUp']) ? 1 : 0;
+  const brake = (keys['KeyS'] || keys['ArrowDown']) ? 1 : 0;
+  const steerLeft = (keys['KeyA'] || keys['ArrowLeft']) ? 1 : 0;
+  const steerRight = (keys['KeyD'] || keys['ArrowRight']) ? 1 : 0;
+  const handbrake = !!keys['Space'];
+  const boostReq = !!(keys['ShiftLeft'] || keys['ShiftRight']);
+  const boostActive = boostReq && state.nitro > 2 && throttle > 0;
+
+  if (boostActive) {
+    state.nitro = Math.max(0, state.nitro - 26 * dt);
+  } else {
+    state.nitro = Math.min(100, state.nitro + 8.5 * dt);
+  }
+
+  // Car local basis vectors
+  const fx = Math.sin(state.yaw);
+  const fz = Math.cos(state.yaw);
+  const rx = Math.cos(state.yaw);
+  const rz = -Math.sin(state.yaw);
+
+  // Decompose velocity into forward & lateral
+  let forwardVel = state.vx * fx + state.vz * fz;
+  let lateralVel = state.vx * rx + state.vz * rz;
+  const totalSpeed = Math.hypot(state.vx, state.vz);
+
+  // Steering
+  const steerInput = steerLeft - steerRight;
+  state.steerVisual += (steerInput * 0.45 - state.steerVisual) * Math.min(1, dt * 12);
+
+  const speedFactor = Math.min(1, totalSpeed / 7.5);
+  const dirSign = forwardVel >= -0.5 ? 1 : -1;
+  const handbrakeTurnBoost = handbrake ? 1.32 : 1.0;
+  state.yaw += steerInput * spec.turnSpeed * speedFactor * dirSign * handbrakeTurnBoost * dt;
+
+  // Acceleration / Braking
+  const accelPower = spec.accel * (boostActive ? 1.55 : 1.0);
+  if (throttle) {
+    forwardVel += accelPower * dt;
+  }
+  if (brake) {
+    if (forwardVel > 1.5) {
+      forwardVel -= 42 * dt; // strong brake
+    } else {
+      forwardVel -= 18 * dt; // reverse
+    }
+  }
+
+  // Max speed soft cap
+  const topSpeed = spec.maxSpeed * (boostActive ? 1.24 : 1.0);
+  forwardVel = Math.max(-18, Math.min(topSpeed, forwardVel));
+
+  // Aerodynamic drag & rolling resistance
+  if (!throttle && !brake) {
+    forwardVel *= Math.pow(0.62, dt);
+  } else {
+    forwardVel *= Math.pow(0.92, dt);
+  }
+
+  // Lateral grip vs Drift Slip!
+  const gripFactor = handbrake ? 0.965 : (throttle && Math.abs(steerInput) > 0.2 ? spec.driftGrip : 0.85);
+  lateralVel *= Math.pow(gripFactor, dt * 60);
+
+  // Reconstruct world velocity using updated yaw
+  const nfx = Math.sin(state.yaw);
+  const nfz = Math.cos(state.yaw);
+  const nrx = Math.cos(state.yaw);
+  const nrz = -Math.sin(state.yaw);
+
+  state.vx = nfx * forwardVel + nrx * lateralVel;
+  state.vz = nfz * forwardVel + nrz * lateralVel;
+
+  // Integrate X / Z
+  let nextX = state.x + state.vx * dt;
+  let nextZ = state.z + state.vz * dt;
+
+  // Wall & Building Collisions (smooth sliding)
+  const carR = 1.65;
+  const bound = 211;
+  if (nextX < -bound) { nextX = -bound; state.vx = Math.abs(state.vx) * 0.35; spawnSparks(nextX, state.y, nextZ); audio.triggerBump(0.5); }
+  if (nextX > bound)  { nextX = bound;  state.vx = -Math.abs(state.vx) * 0.35; spawnSparks(nextX, state.y, nextZ); audio.triggerBump(0.5); }
+  if (nextZ < -bound) { nextZ = -bound; state.vz = Math.abs(state.vz) * 0.35; spawnSparks(nextX, state.y, nextZ); audio.triggerBump(0.5); }
+  if (nextZ > bound)  { nextZ = bound;  state.vz = -Math.abs(state.vz) * 0.35; spawnSparks(nextX, state.y, nextZ); audio.triggerBump(0.5); }
+
+  for (const box of colliders) {
+    const cx = Math.max(box.minX, Math.min(nextX, box.maxX));
+    const cz = Math.max(box.minZ, Math.min(nextZ, box.maxZ));
+    const dx = nextX - cx;
+    const dz = nextZ - cz;
+    const distSq = dx * dx + dz * dz;
+    if (distSq < carR * carR) {
+      const dist = Math.sqrt(distSq) || 0.001;
+      const nx = dx / dist;
+      const nz = dz / dist;
+      const overlap = carR - dist;
+      nextX += nx * overlap;
+      nextZ += nz * overlap;
+      const vn = state.vx * nx + state.vz * nz;
+      if (vn < 0) {
+        state.vx -= 1.35 * vn * nx;
+        state.vz -= 1.35 * vn * nz;
+        if (Math.abs(vn) > 4) {
+          spawnSparks(cx, state.y, cz, 9);
+          audio.triggerBump(Math.min(1, Math.abs(vn) / 22));
+        }
+      }
+    }
+  }
+
+  state.x = nextX;
+  state.z = nextZ;
+
+  // Vertical Ramp / Jump Physics
+  const groundH = getGroundHeight(state.x, state.z);
+  const prevGroundH = getGroundHeight(state.x - state.vx * dt, state.z - state.vz * dt);
+  if (state.y <= groundH + 0.05 && groundH > prevGroundH) {
+    const slopeVel = (groundH - prevGroundH) / Math.max(0.001, dt);
+    state.vy = Math.max(state.vy, slopeVel * 0.92);
+  }
+  state.vy -= 26 * dt; // gravity
+  state.y += state.vy * dt;
+  const grounded = state.y <= groundH + 0.04;
+  if (state.y < groundH) {
+    if (state.vy < -6) spawnSparks(state.x, groundH, state.z, 6);
+    state.y = groundH;
+    state.vy = 0;
+  }
+
+  // Interactive Knockable Cones
+  for (const p of dynamicProps) {
+    const dx = p.x - state.x;
+    const dz = p.z - state.z;
+    const d = Math.hypot(dx, dz);
+    if (d < 1.85 && d > 0.001) {
+      const nx = dx / d;
+      const nz = dz / d;
+      p.vx = state.vx * 1.15 + nx * 8;
+      p.vz = state.vz * 1.15 + nz * 8;
+      p.rotVel = (Math.random() - 0.5) * 14;
+      audio.triggerBump(0.28);
+    }
+    p.x += p.vx * dt;
+    p.z += p.vz * dt;
+    p.vx *= Math.pow(0.18, dt);
+    p.vz *= Math.pow(0.18, dt);
+    p.mesh.position.x = p.x;
+    p.mesh.position.z = p.z;
+    p.mesh.rotation.x += p.rotVel * dt;
+    p.rotVel *= Math.pow(0.25, dt);
+  }
+
+  // Drift Gates Check
+  for (const g of driftGates) {
+    g.ring.rotation.z = Math.sin(now * 0.002 + g.x) * 0.04;
+    if (g.cooldown > 0) g.cooldown -= dt;
+    const d = Math.hypot(state.x - g.x, state.z - g.z);
+    if (d < g.radius && g.cooldown <= 0 && totalSpeed > 10) {
+      g.cooldown = 6.0;
+      state.gatesCleared++;
+      const bonus = 500 * state.driftCombo;
+      state.totalScore += bonus;
+      state.nitro = Math.min(100, state.nitro + 25);
+      audio.triggerGateChime(state.gatesCleared);
+      spawnSparks(g.x, 1.2, g.z, 14);
+    }
+  }
+
+  // Calculate Slip Angle & Drift Scoring
+  let slipDeg = 0;
+  if (totalSpeed > 4.5 && grounded) {
+    const moveAngle = Math.atan2(state.vx, state.vz);
+    let diff = moveAngle - state.yaw;
+    while (diff > Math.PI) diff -= Math.PI * 2;
+    while (diff < -Math.PI) diff += Math.PI * 2;
+    slipDeg = Math.abs(diff) * (180 / Math.PI);
+    if (slipDeg > 90) slipDeg = 180 - slipDeg; // reverse slide clamp
+  }
+
+  const isDrifting = grounded && totalSpeed > 11 && (slipDeg > 13 || (handbrake && slipDeg > 7));
+  if (isDrifting) {
+    state.driftGraceTimer = 1.15;
+    const pts = (slipDeg * 1.4 + totalSpeed * 1.2) * state.driftCombo * dt * 10;
+    state.currentDriftScore += pts;
+    if (state.currentDriftScore > 600 && state.driftCombo < 2) state.driftCombo = 2;
+    if (state.currentDriftScore > 1800 && state.driftCombo < 3) state.driftCombo = 3;
+    if (state.currentDriftScore > 3600 && state.driftCombo < 4) state.driftCombo = 4;
+    if (state.currentDriftScore > 6500 && state.driftCombo < 5) state.driftCombo = 5;
+
+    // Emit tire smoke & skidmarks at rear wheels!
+    state.skidTick += dt;
+    if (state.skidTick > 0.032) {
+      state.skidTick = 0;
+      const rearDist = -1.3;
+      const trackHalf = 0.84;
+      const lx = state.x + nfx * rearDist - nrx * trackHalf;
+      const lz = state.z + nfz * rearDist - nrz * trackHalf;
+      const rxw = state.x + nfx * rearDist + nrx * trackHalf;
+      const rzw = state.z + nfz * rearDist + nrz * trackHalf;
+      spawnSkid(lx, state.y, lz, state.yaw);
+      spawnSkid(rxw, state.y, rzw, state.yaw);
+      spawnSmoke(lx, state.y, lz, boostActive ? 0x99e8ff : 0xe4ecff);
+      spawnSmoke(rxw, state.y, rzw, boostActive ? 0xff99d6 : 0xe4ecff);
+    }
+  } else if (state.driftGraceTimer > 0) {
+    state.driftGraceTimer -= dt;
+    if (state.driftGraceTimer <= 0 && state.currentDriftScore > 0) {
+      const banked = Math.round(state.currentDriftScore);
+      state.totalScore += banked;
+      if (banked > state.bestDrift) state.bestDrift = banked;
+      state.currentDriftScore = 0;
+      state.driftCombo = 1;
+    }
+  }
+
+  // Update Visual Car Transform, Body Roll, Pop-up Headlights, Flames & Wheels
+  currentCar.root.position.set(state.x, state.y, state.z);
+  currentCar.root.rotation.y = state.yaw;
+
+  // Dynamic suspension roll & pitch
+  const targetRoll = THREE.MathUtils.clamp(-lateralVel * 0.011 + steerInput * 0.04, -0.14, 0.14);
+  const targetPitch = (brake ? 0.045 : 0) - (throttle ? 0.032 : 0) - (boostActive ? 0.025 : 0);
+  currentCar.bodyGroup.rotation.z += (targetRoll - currentCar.bodyGroup.rotation.z) * Math.min(1, dt * 10);
+  currentCar.bodyGroup.rotation.x += (targetPitch - currentCar.bodyGroup.rotation.x) * Math.min(1, dt * 10);
+
+  // Wheel Steering & Spin
+  currentCar.frontLeftPivot.rotation.y = state.steerVisual;
+  currentCar.frontRightPivot.rotation.y = state.steerVisual;
+  state.wheelSpin += forwardVel * dt * 2.8;
+  currentCar.wheels.forEach(w => { w.rotation.x = state.wheelSpin; });
+
+  // Pop-up Headlights smooth animation (Miata & NSX!)
+  const targetPopup = state.headlights ? -0.98 : 0;
+  state.popupAngle += (targetPopup - state.popupAngle) * Math.min(1, dt * 10);
+  currentCar.popupPivots.forEach(p => { p.rotation.x = state.popupAngle; });
+
+  // Dynamic Brake Lights
+  currentCar.taillightMat.emissiveIntensity = (brake || handbrake) ? 3.8 : 1.75;
+
+  // Exhaust Nitro Flame
+  if (boostActive) {
+    currentCar.flameMat.opacity = 0.85 + Math.random() * 0.15;
+    currentCar.flame.scale.set(1, 0.85 + Math.random() * 0.5, 1);
+  } else {
+    currentCar.flameMat.opacity *= Math.pow(0.02, dt);
+  }
+
+  // 6-Speed Gearbox & RPM Calculation
+  const kmh = Math.round(totalSpeed * 3.8);
+  const speedRatio = Math.min(1, totalSpeed / spec.maxSpeed);
+  const newGear = totalSpeed < 1.2 ? 1 : Math.min(6, Math.floor(speedRatio * 5.6) + 1);
+  if (newGear > state.gear && throttle) {
+    // Exhaust shift pop!
+    currentCar.flameMat.opacity = 0.85;
+  }
+  state.gear = newGear;
+  const gearSlice = 1 / 6;
+  const rpmInGear = ((speedRatio - (newGear - 1) * gearSlice * 0.82) / gearSlice);
+  const slipRpmBoost = isDrifting ? 0.18 : 0;
+  const targetRpm = THREE.MathUtils.clamp(0.16 + rpmInGear * 0.68 + throttle * 0.14 + slipRpmBoost, 0.14, 0.99);
+  state.rpm += (targetRpm - state.rpm) * Math.min(1, dt * 12);
+
+  // Update Audio Engine
+  const slipIntensity = grounded ? Math.min(1, Math.max(0, (slipDeg - 10) / 36) * Math.min(1, totalSpeed / 14)) : 0;
+  audio.update(state.rpm, throttle, slipIntensity, spec, boostActive);
+
+  // Update Particles: Smoke, Sparks, Sakura
+  for (const p of smokePool) {
+    if (!p.mesh.visible) continue;
+    p.life += dt;
+    if (p.life >= p.maxLife) {
+      p.mesh.visible = false;
+      continue;
+    }
+    const t = p.life / p.maxLife;
+    p.mesh.position.x += p.vx * dt;
+    p.mesh.position.y += p.vy * dt;
+    p.mesh.position.z += p.vz * dt;
+    p.mesh.scale.setScalar(0.55 + t * 1.9);
+    p.mat.opacity = 0.48 * (1 - t);
+  }
+
+  for (const s of sparkPool) {
+    if (!s.mesh.visible) continue;
+    s.life -= dt;
+    if (s.life <= 0) { s.mesh.visible = false; continue; }
+    s.vy -= 22 * dt;
+    s.mesh.position.x += s.vx * dt;
+    s.mesh.position.y += s.vy * dt;
+    s.mesh.position.z += s.vz * dt;
+    s.mat.opacity = s.life / 0.42;
+  }
+
+  const pArr = petalGeo.attributes.position.array;
+  for (let i = 0; i < PETAL_COUNT; i++) {
+    pArr[i * 3] += Math.sin(now * 0.001 + i) * 1.2 * dt;
+    pArr[i * 3 + 1] -= (1.5 + (i % 3) * 0.4) * dt;
+    pArr[i * 3 + 2] += Math.cos(now * 0.0008 + i) * 1.0 * dt;
+    if (pArr[i * 3 + 1] < 0.2) pArr[i * 3 + 1] = 28 + Math.random() * 8;
+  }
+  petalGeo.attributes.position.needsUpdate = true;
+
+  // Camera System (Chase / Hood / Orbit + Temporary Mouse Look-Around)
+  if (!isDragging && state.camMode !== 2 && performance.now() - state.lastDragTime > 1400) {
+    state.orbitYawOffset *= Math.pow(0.08, dt);
+    state.orbitPitch += (0.24 - state.orbitPitch) * Math.min(1, dt * 4);
+  }
+
+  if (state.camMode === 1) {
+    // Hood / Bumper speed cam
+    const targetFov = 68 + speedRatio * 14 + (boostActive ? 8 : 0);
+    camera.fov += (targetFov - camera.fov) * Math.min(1, dt * 8);
+    camera.updateProjectionMatrix();
+    camera.position.set(state.x + nfx * 1.1, state.y + 1.32, state.z + nfz * 1.1);
+    camera.lookAt(state.x + nfx * 18, state.y + 1.1, state.z + nfz * 18);
+  } else {
+    const targetFov = 58 + speedRatio * 10 + (boostActive ? 9 : 0);
+    camera.fov += (targetFov - camera.fov) * Math.min(1, dt * 7);
+    camera.updateProjectionMatrix();
+
+    if (state.camMode === 2 && !isDragging) {
+      state.orbitYawOffset += dt * 0.35;
+    }
+    const camYaw = state.yaw + state.orbitYawOffset;
+    const dist = state.camMode === 2 ? 9.5 : 8.2 + speedRatio * 1.6;
+    const desiredX = state.x - Math.sin(camYaw) * dist;
+    const desiredZ = state.z - Math.cos(camYaw) * dist;
+    const desiredY = state.y + 2.4 + Math.sin(state.orbitPitch) * 6.5;
+
+    const lerpRate = Math.min(1, dt * 8.5);
+    camPos.lerp(new THREE.Vector3(desiredX, desiredY, desiredZ), lerpRate);
+    camLook.lerp(new THREE.Vector3(state.x + nfx * 2.5, state.y + 1.1, state.z + nfz * 2.5), Math.min(1, dt * 12));
+    camera.position.copy(camPos);
+    camera.lookAt(camLook);
+  }
+
+  // Update Translucent HUD Telemetry
+  document.getElementById('ui-speed').textContent = kmh;
+  document.getElementById('ui-gear').textContent = totalSpeed < 0.8 ? 'N' : state.gear;
+  document.getElementById('rpm-arc').setAttribute('stroke-dashoffset', (198 * (1 - state.rpm)).toFixed(1));
+  document.getElementById('rpm-arc').setAttribute('stroke', state.rpm > 0.84 ? '#ff4fa3' : '#38f2ff');
+
+  document.getElementById('bar-nitro').style.width = state.nitro.toFixed(0) + '%';
+  document.getElementById('ui-nitro-pct').textContent = state.nitro.toFixed(0) + '%';
+  document.getElementById('bar-slip').style.width = Math.min(100, (slipDeg / 55) * 100).toFixed(0) + '%';
+  document.getElementById('ui-slip-deg').textContent = Math.round(slipDeg) + '°';
+
+  document.getElementById('ui-total-score').textContent = state.totalScore.toLocaleString();
+  document.getElementById('ui-best-drift').textContent = state.bestDrift.toLocaleString();
+  document.getElementById('ui-gates').textContent = state.gatesCleared;
+  document.getElementById('ui-zone').textContent = getTokyoZone(state.x, state.z);
+
+  const banner = document.getElementById('drift-banner');
+  if (state.currentDriftScore > 25 && state.driftGraceTimer > 0) {
+    banner.classList.add('active');
+    document.getElementById('drift-angle').textContent = Math.round(slipDeg) + '° SLIDE';
+    document.getElementById('drift-pts').textContent = '+' + Math.round(state.currentDriftScore).toLocaleString();
+    document.getElementById('drift-mult').textContent = 'x' + state.driftCombo;
+  } else {
+    banner.classList.remove('active');
+  }
+
+  drawMinimap();
+
+  // Render Pixelated + Bloomy Tokyo!
+  composer.render();
+}
+
+requestAnimationFrame(animate);
+</script>
+</body>
+</html>
